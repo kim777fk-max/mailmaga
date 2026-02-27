@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ step_label }} メール作成{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="/cycle/{{ cycle.id }}" class="text-muted text-decoration-none small">
+    <i class="bi bi-chevron-left me-1"></i>vol.{{ cycle.vol }} {{ cycle.delivery_month }}月号 に戻る
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-0 fw-bold">
+            <i class="bi bi-envelope-open me-2"></i>{{ step_label }}
+          </h5>
+          <small class="text-muted">vol.{{ cycle.vol }} {{ cycle.delivery_year }}年{{ cycle.delivery_month }}月号</small>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-success" onclick="copyAll()">
+            <i class="bi bi-clipboard-check me-1"></i>全文コピー
+          </button>
+          <a href="{{ mailto }}" class="btn btn-outline-primary" target="_blank">
+            <i class="bi bi-envelope-arrow-up me-1"></i>メーラーで開く
+          </a>
+        </div>
+      </div>
+
+      <div class="card-body p-4">
+        <!-- To / CC -->
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold text-muted small">宛先 (To)</label>
+            <div class="email-field">{{ to_text }}</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold text-muted small">Cc</label>
+            <div class="email-field">{{ cc_text or '（なし）' }}</div>
+          </div>
+        </div>
+
+        <!-- Subject -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold text-muted small">件名</label>
+          <div class="email-subject-field d-flex justify-content-between align-items-center">
+            <span id="subject-text">{{ subject }}</span>
+            <button class="btn btn-sm btn-outline-secondary ms-2"
+                    onclick="copyText('subject-text')" title="件名をコピー">
+              <i class="bi bi-clipboard"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold text-muted small d-flex justify-content-between align-items-center">
+            <span>本文</span>
+            <button class="btn btn-sm btn-outline-secondary"
+                    onclick="copyText('body-text')" title="本文をコピー">
+              <i class="bi bi-clipboard me-1"></i>本文コピー
+            </button>
+          </label>
+          <pre id="body-text" class="email-body-field">{{ body }}</pre>
+        </div>
+
+        <!-- Copy feedback -->
+        <div id="copy-toast" class="copy-toast" style="display:none;">
+          <i class="bi bi-check-circle-fill me-1"></i>コピーしました！
+        </div>
+      </div>
+
+      <!-- Edit template link -->
+      <div class="card-footer text-muted small">
+        <i class="bi bi-pencil me-1"></i>
+        テンプレートを編集するには
+        <a href="/settings#tmpl-{{ step_key }}">設定ページ</a>
+        から変更できます
+      </div>
+    </div>
+
+    <!-- Mark as done -->
+    <div class="mt-3 text-center">
+      <form method="POST" action="/cycle/{{ cycle.id }}/step/{{ step_key }}/toggle"
+            onsubmit="return confirm('このステップを完了にしますか？')">
+        {% set s = cycle.steps.get(step_key, {}) %}
+        <button type="submit" class="btn {{ 'btn-secondary' if s.get('completed') else 'btn-success' }}">
+          {% if s.get('completed') %}
+          <i class="bi bi-arrow-counterclockwise me-1"></i>完了を取り消す
+          {% else %}
+          <i class="bi bi-check2-circle me-1"></i>送信済みにする（ステップを完了にする）
+          {% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyText(elementId) {
+  const el = document.getElementById(elementId);
+  navigator.clipboard.writeText(el.innerText || el.textContent)
+    .then(() => showToast());
+}
+
+function copyAll() {
+  const subject = document.getElementById('subject-text').textContent;
+  const body    = document.getElementById('body-text').textContent;
+  const text    = `件名: ${subject}\n\n${body}`;
+  navigator.clipboard.writeText(text).then(() => showToast());
+}
+
+function showToast() {
+  const toast = document.getElementById('copy-toast');
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 2000);
+}
+
+// Ctrl+C shortcut hint: nothing to do, just let users know
+document.addEventListener('DOMContentLoaded', () => {
+  const subjectEl = document.getElementById('subject-text');
+  const bodyEl    = document.getElementById('body-text');
+  if (subjectEl) subjectEl.setAttribute('tabindex', '0');
+  if (bodyEl) bodyEl.setAttribute('tabindex', '0');
+});
+</script>
+{% endblock %}

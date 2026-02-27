@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}vol.{{ cycle.vol }} {{ cycle.delivery_month }}月号{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <a href="/" class="text-muted text-decoration-none small">
+      <i class="bi bi-chevron-left me-1"></i>ダッシュボード
+    </a>
+    <h1 class="h3 fw-bold mb-0 mt-1">
+      メルマガいたしん vol.{{ cycle.vol }}
+      <span class="text-muted fw-normal">{{ cycle.delivery_year }}年{{ cycle.delivery_month }}月号</span>
+    </h1>
+    <small class="text-muted">発行予定: {{ cycle.schedule.publish }}</small>
+  </div>
+  <div class="text-end">
+    <div class="fw-bold text-primary mb-1">{{ cycle.progress.pct }}% 完了</div>
+    <div class="progress" style="width:160px; height:8px; border-radius:4px;">
+      <div class="progress-bar" style="width:{{ cycle.progress.pct }}%"></div>
+    </div>
+    <small class="text-muted">{{ cycle.progress.completed }}/{{ cycle.progress.total }} ステップ</small>
+  </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#tab-schedule">
+      <i class="bi bi-calendar3 me-1"></i>スケジュール
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-email">
+      <i class="bi bi-envelope me-1"></i>メール
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-articles">
+      <i class="bi bi-file-text me-1"></i>原稿管理
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-notes">
+      <i class="bi bi-sticky me-1"></i>メモ
+    </a>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- ── Tab 1: スケジュール ─────────────────────── -->
+  <div class="tab-pane fade show active" id="tab-schedule">
+    <div class="row g-3">
+      {% for step in steps %}
+      {% set s = cycle.steps.get(step.key, {}) %}
+      {% set sdate = cycle.schedule.get(step.date_key, '') %}
+      <div class="col-12">
+        <div class="step-row {{ 'step-done' if s.get('completed') else ('step-today' if sdate == today else '') }}">
+          <div class="d-flex align-items-center gap-3">
+            <!-- Toggle button -->
+            <button class="btn-toggle {{ 'done' if s.get('completed') else '' }}"
+                    onclick="toggleStep('{{ cycle.id }}', '{{ step.key }}', this)"
+                    title="{{ '完了済み（クリックで戻す）' if s.get('completed') else '完了にする' }}">
+              {% if s.get('completed') %}
+              <i class="bi bi-check-circle-fill"></i>
+              {% else %}
+              <i class="bi bi-circle"></i>
+              {% endif %}
+            </button>
+            <!-- Step info -->
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center gap-2">
+                <span class="step-icon-num">{{ step.icon }}</span>
+                <span class="fw-semibold {{ 'text-muted text-decoration-line-through' if s.get('completed') else '' }}">
+                  {{ step.label }}
+                </span>
+                {% if sdate == today %}
+                <span class="badge bg-warning text-dark">今日</span>
+                {% elif sdate < today and not s.get('completed') %}
+                <span class="badge bg-danger">期限超過</span>
+                {% endif %}
+              </div>
+              {% if s.get('completed_at') %}
+              <small class="text-success">
+                <i class="bi bi-check2 me-1"></i>完了: {{ s.completed_at[:10] }}
+              </small>
+              {% endif %}
+            </div>
+            <!-- Date -->
+            <div class="text-end">
+              <div class="fw-semibold {{ 'text-muted' if s.get('completed') else '' }}">{{ sdate }}</div>
+              {% if step.has_email and email_previews.get(step.key) %}
+              <a href="/cycle/{{ cycle.id }}/email/{{ step.key }}"
+                 class="btn btn-sm btn-outline-secondary mt-1">
+                <i class="bi bi-envelope me-1"></i>メール作成
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Tab 2: メール ──────────────────────────── -->
+  <div class="tab-pane fade" id="tab-email">
+    <div class="row g-3">
+      {% for step in steps %}
+      {% if step.has_email %}
+      {% set ep = email_previews.get(step.key) %}
+      {% set s  = cycle.steps.get(step.key, {}) %}
+      <div class="col-12">
+        <div class="card email-card {{ 'opacity-75' if s.get('completed') else '' }}">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-bold mb-1">
+                  {{ step.icon }} {{ step.label }}
+                  {% if s.get('completed') %}
+                  <span class="badge bg-success ms-2">送信済み</span>
+                  {% endif %}
+                </div>
+                {% if ep %}
+                <div class="text-muted small">件名: {{ ep.subject }}</div>
+                <div class="text-muted small">宛先: {{ ep.to.split('\n')[0] }}{% if '\n' in ep.to %}...{% endif %}</div>
+                {% endif %}
+              </div>
+              <a href="/cycle/{{ cycle.id }}/email/{{ step.key }}"
+                 class="btn btn-primary btn-sm">
+                <i class="bi bi-envelope-open me-1"></i>メール作成・コピー
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Tab 3: 原稿管理 ───────────────────────── -->
+  <div class="tab-pane fade" id="tab-articles">
+    <!-- フォルダ設定 -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <form method="POST" action="/cycle/{{ cycle.id }}/update" class="d-flex gap-2 align-items-end">
+          <div class="flex-grow-1">
+            <label class="form-label fw-semibold mb-1">
+              <i class="bi bi-folder2-open me-1"></i>原稿フォルダ（ローカルパス）
+            </label>
+            <input type="text" class="form-control" name="submissions_folder"
+                   value="{{ cycle.submissions_folder or '' }}"
+                   placeholder="/Users/xxx/Downloads/原稿提出フォルダ">
+            <div class="form-text">XServerからダウンロードした原稿フォルダのパスを入力してください</div>
+          </div>
+          <input type="hidden" name="notes" value="{{ cycle.notes or '' }}">
+          <button type="submit" class="btn btn-primary">更新</button>
+          {% if cycle.submissions_folder %}
+          <button type="button" class="btn btn-outline-secondary"
+                  onclick="refreshSubmissions()">
+            <i class="bi bi-arrow-clockwise"></i> 再スキャン
+          </button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    <!-- 提出状況 -->
+    <div id="submissions-area">
+      {% if cycle.submissions_folder %}
+        {% if submissions %}
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <div class="alert alert-info py-2 mb-0">
+              <i class="bi bi-info-circle me-1"></i>
+              <strong>{{ submissions | length }}部署</strong>から提出あり
+            </div>
+          </div>
+        </div>
+        <div class="row g-2">
+          {% for dept_name, files in submissions.items() %}
+          <div class="col-md-6 col-lg-4">
+            <div class="card submission-card">
+              <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold small">
+                    {% if dept_name in departments %}
+                    <i class="bi bi-person-fill me-1 text-success"></i>
+                    {% else %}
+                    <i class="bi bi-file-earmark me-1 text-muted"></i>
+                    {% endif %}
+                    {{ dept_name }}
+                  </span>
+                  <span class="badge bg-success">提出済</span>
+                </div>
+                {% for f in files %}
+                <div class="text-muted small mt-1 text-truncate" title="{{ f.filename }}">
+                  <i class="bi bi-{{ 'file-text' if f.ext == '.txt' else 'file-word' }} me-1"></i>
+                  {{ f.filename }} <span class="text-muted">({{ f.size_kb }}KB, {{ f.modified }})</span>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- 未提出部署 -->
+        {% set submitted_depts = submissions.keys() | list %}
+        {% set missing = departments | reject('in', submitted_depts) | list %}
+        {% if missing %}
+        <div class="mt-3">
+          <div class="alert alert-warning">
+            <strong><i class="bi bi-exclamation-triangle me-1"></i>未提出: {{ missing | length }}部署</strong>
+            <div class="mt-1">{{ missing | join('、') }}</div>
+          </div>
+        </div>
+        {% else %}
+        <div class="alert alert-success mt-3">
+          <i class="bi bi-check-circle-fill me-1"></i>全部署から提出があります！
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="alert alert-warning">
+          <i class="bi bi-folder-x me-1"></i>
+          フォルダ内に原稿ファイル（.txt / .docx）が見つかりません。<br>
+          XServerから原稿をダウンロードして、フォルダパスを確認してください。
+        </div>
+        {% endif %}
+      {% else %}
+      <div class="text-center text-muted py-4">
+        <i class="bi bi-folder2 display-4 d-block mb-2"></i>
+        フォルダパスを設定すると、原稿の提出状況を確認できます
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Tab 4: メモ ────────────────────────────── -->
+  <div class="tab-pane fade" id="tab-notes">
+    <div class="card">
+      <div class="card-body">
+        <form method="POST" action="/cycle/{{ cycle.id }}/update">
+          <input type="hidden" name="submissions_folder" value="{{ cycle.submissions_folder or '' }}">
+          <label class="form-label fw-semibold">
+            <i class="bi bi-sticky me-1"></i>メモ・引き継ぎ事項
+          </label>
+          <textarea class="form-control" name="notes" rows="8"
+                    placeholder="担当者メモ、引き継ぎ事項など自由に記入">{{ cycle.notes or '' }}</textarea>
+          <button type="submit" class="btn btn-primary mt-3">
+            <i class="bi bi-save me-1"></i>保存
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleStep(cycleId, stepKey, btn) {
+  fetch(`/cycle/${cycleId}/step/${stepKey}/toggle`, {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+      const row = btn.closest('.step-row');
+      const icon = btn.querySelector('i');
+      if (data.completed) {
+        btn.classList.add('done');
+        icon.className = 'bi bi-check-circle-fill';
+        row.classList.add('step-done');
+        row.classList.remove('step-today');
+      } else {
+        btn.classList.remove('done');
+        icon.className = 'bi bi-circle';
+        row.classList.remove('step-done');
+      }
+      // Update progress (simple reload approach)
+      setTimeout(() => location.reload(), 300);
+    });
+}
+
+function refreshSubmissions() {
+  location.reload();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}新規号の作成{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="mb-4">
+      <a href="/" class="text-muted text-decoration-none small">
+        <i class="bi bi-chevron-left me-1"></i>ダッシュボードに戻る
+      </a>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0 fw-bold">
+          <i class="bi bi-plus-circle me-2"></i>新規号の作成
+        </h5>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" action="/cycle/new">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">配信年</label>
+            <input type="number" class="form-control" name="delivery_year"
+                   value="{{ suggested_year }}" min="2020" max="2040" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">配信月</label>
+            <select class="form-select" name="delivery_month" required>
+              {% for m in [1,3,5,7,9,11] %}
+              <option value="{{ m }}" {{ 'selected' if m == suggested_month else '' }}>
+                {{ m }}月
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">メルマガは奇数月発行です</div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Vol番号</label>
+            <input type="number" class="form-control" name="vol"
+                   value="{{ suggested_vol }}" min="1" required>
+          </div>
+
+          <!-- Preview -->
+          <div class="alert alert-info small mb-4" id="schedule-preview">
+            <strong><i class="bi bi-calendar3 me-1"></i>スケジュール（自動計算）</strong>
+            <div id="preview-content" class="mt-2"></div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100 fw-semibold">
+            <i class="bi bi-check2-circle me-1"></i>作成する
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function calcSchedule(year, month) {
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear  = month === 1 ? year - 1 : year;
+  const lastDay   = new Date(prevYear, prevMonth, 0).getDate();
+
+  function fmt(y, m, d) {
+    d = Math.min(d, new Date(y, m, 0).getDate());
+    return `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+  }
+
+  return [
+    { label: '①スケジュール案内',        date: fmt(prevYear, prevMonth, 25) },
+    { label: '②原稿依頼',               date: fmt(prevYear, prevMonth, 26) },
+    { label: '④リマインド',              date: fmt(year, month, 6) },
+    { label: '⑤原稿締切',               date: fmt(year, month, 7) },
+    { label: '　広報部内確認依頼',        date: fmt(year, month, 8) },
+    { label: '　広報部内確認〆切',        date: fmt(year, month, 10) },
+    { label: '⑦テスト配信',              date: fmt(year, month, 11) },
+    { label: '　テスト確認〆切',          date: fmt(year, month, 13) },
+    { label: '⑨発行',                   date: fmt(year, month, 15) },
+  ];
+}
+
+function updatePreview() {
+  const year  = parseInt(document.querySelector('[name="delivery_year"]').value);
+  const month = parseInt(document.querySelector('[name="delivery_month"]').value);
+  if (!year || !month) return;
+
+  const items = calcSchedule(year, month);
+  const html  = items.map(i =>
+    `<div class="d-flex justify-content-between">
+       <span>${i.label}</span><span class="fw-semibold">${i.date}</span>
+     </div>`
+  ).join('');
+  document.getElementById('preview-content').innerHTML = html;
+}
+
+document.querySelector('[name="delivery_year"]').addEventListener('input',  updatePreview);
+document.querySelector('[name="delivery_month"]').addEventListener('change', updatePreview);
+updatePreview();
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}設定{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 fw-bold mb-0"><i class="bi bi-gear me-2"></i>設定</h1>
+  <small class="text-muted">各種設定・メールテンプレートの編集</small>
+</div>
+
+<div class="row g-4">
+
+  <!-- 基本設定 -->
+  <div class="col-lg-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-header">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-sliders me-2"></i>基本設定</h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="/settings">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">送信者名</label>
+            <input type="text" class="form-control" name="sender_name"
+                   value="{{ config.sender_name }}" placeholder="木村">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">送信者メールアドレス</label>
+            <input type="email" class="form-control" name="sender_email"
+                   value="{{ config.sender_email }}" placeholder="xxx@gmail.com">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">お問い合わせメールアドレス</label>
+            <input type="email" class="form-control" name="contact_email"
+                   value="{{ config.contact_email }}" placeholder="mmp@rmc-itabashi.jp">
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold">原稿提出サーバURL</label>
+            <input type="url" class="form-control" name="server_url"
+                   value="{{ config.server_url }}" placeholder="https://...">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-save me-1"></i>保存
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- メールテンプレート -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-envelope-paper me-2"></i>メールテンプレート</h5>
+        <small class="text-muted">
+          変数: {vol} {delivery_year} {delivery_month} {deadline} {publish}
+          {server_url} {contact_email} {sender_name} {sender_email}
+          {request_mail} {test_distribution} {test_deadline}
+        </small>
+      </div>
+      <div class="card-body p-0">
+        <div class="accordion" id="templateAccordion">
+          {% for step in steps %}
+          {% if step.has_email %}
+          {% set tmpl = templates.get(step.key, {}) %}
+          <div class="accordion-item" id="tmpl-{{ step.key }}">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed fw-semibold" type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapse-{{ step.key }}">
+                {{ step.icon }} {{ step.label }}
+              </button>
+            </h2>
+            <div id="collapse-{{ step.key }}" class="accordion-collapse collapse"
+                 data-bs-parent="#templateAccordion">
+              <div class="accordion-body">
+                <form method="POST" action="/settings/template/{{ step.key }}">
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold">宛先 (To)</label>
+                    <textarea class="form-control form-control-sm" name="to" rows="2">{{ tmpl.get('to', '') }}</textarea>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold">Cc</label>
+                    <input type="text" class="form-control form-control-sm" name="cc"
+                           value="{{ tmpl.get('cc', '') }}">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold">件名</label>
+                    <input type="text" class="form-control form-control-sm" name="subject"
+                           value="{{ tmpl.get('subject', '') }}">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold">本文</label>
+                    <textarea class="form-control form-control-sm font-mono" name="body"
+                              rows="12">{{ tmpl.get('body', '') }}</textarea>
+                  </div>
+                  <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="bi bi-save me-1"></i>保存
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-open accordion if URL has hash
+document.addEventListener('DOMContentLoaded', () => {
+  const hash = location.hash;
+  if (hash && hash.startsWith('#tmpl-')) {
+    const stepKey = hash.replace('#tmpl-', '');
+    const el = document.getElementById(`collapse-${stepKey}`);
+    if (el) {
+      new bootstrap.Collapse(el, {show: true});
+      el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+  }
+});
+</script>
+{% endblock %}

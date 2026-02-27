@@ -1,0 +1,231 @@
+/* ─────────────────────────────────────────────────
+   メルマガいたしん 管理ツール - Custom Styles
+───────────────────────────────────────────────── */
+
+:root {
+  --navy:       #1a365d;
+  --navy-light: #2c5282;
+  --blue:       #3182ce;
+  --green:      #38a169;
+  --yellow:     #d69e2e;
+  --bg:         #f7f8fc;
+}
+
+body {
+  background: var(--bg);
+  font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  font-size: 14px;
+}
+
+/* ── Navbar ── */
+.main-nav {
+  background: var(--navy) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.nav-action {
+  font-size: 13px;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+.nav-action:hover { opacity: 1; }
+
+/* ── Container ── */
+.main-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+/* ── Cards ── */
+.card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+.card-header {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 10px 10px 0 0 !important;
+  padding: 14px 20px;
+}
+
+/* ── Current cycle card ── */
+.current-cycle-card {
+  border: 2px solid var(--blue);
+  border-radius: 10px;
+}
+.current-cycle-card .card-header {
+  background: var(--navy);
+  color: white;
+}
+
+/* ── Step badges (dashboard) ── */
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #edf2f7;
+  color: #4a5568;
+  font-size: 12px;
+  border: 1px solid #e2e8f0;
+}
+.step-badge.done {
+  background: #c6f6d5;
+  color: #276749;
+  border-color: #9ae6b4;
+}
+.step-badge .step-num { font-size: 11px; }
+
+/* ── Date chips ── */
+.date-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #ebf4ff;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+.date-chip.publish {
+  background: #fefcbf;
+  color: var(--yellow);
+}
+
+/* ── Cycle cards ── */
+.cycle-card { transition: box-shadow 0.2s; }
+.cycle-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+/* ── Step rows (cycle detail) ── */
+.step-row {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  transition: all 0.2s;
+}
+.step-row:hover { border-color: #bee3f8; }
+.step-row.step-done {
+  background: #f0fff4;
+  border-color: #9ae6b4;
+}
+.step-row.step-today {
+  background: #fffbeb;
+  border-color: #f6e05e;
+}
+
+.step-icon-num {
+  font-size: 16px;
+  min-width: 24px;
+}
+
+/* ── Toggle button ── */
+.btn-toggle {
+  background: none;
+  border: 2px solid #cbd5e0;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #a0aec0;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.btn-toggle:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.btn-toggle.done {
+  background: var(--green);
+  border-color: var(--green);
+  color: white;
+}
+
+/* ── Email card ── */
+.email-card {
+  border-left: 4px solid var(--blue);
+}
+
+/* ── Email compose ── */
+.email-field {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  white-space: pre-line;
+  font-size: 13px;
+  min-height: 40px;
+}
+.email-subject-field {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.email-body-field {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 16px;
+  font-size: 13px;
+  font-family: 'Courier New', 'Hiragino Sans', monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 300px;
+  max-height: 500px;
+  overflow-y: auto;
+  margin: 0;
+}
+
+/* ── Copy toast ── */
+.copy-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--green);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Submission cards ── */
+.submission-card {
+  border-left: 3px solid var(--green);
+}
+
+/* ── Font mono ── */
+.font-mono {
+  font-family: 'Courier New', 'Hiragino Sans', monospace;
+  font-size: 12px;
+}
+
+/* ── Tabs ── */
+.nav-tabs .nav-link {
+  color: #4a5568;
+  border-radius: 8px 8px 0 0;
+}
+.nav-tabs .nav-link.active {
+  font-weight: 600;
+  color: var(--navy);
+}
+
+/* ── Progress bars ── */
+.progress-bar {
+  background: var(--blue);
+}
+
+/* ── Utilities ── */
+.text-navy { color: var(--navy); }

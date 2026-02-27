@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>メルマガ原稿フォーム</title>
+  <style>
+    :root {
+      --purple:       #673ab7;
+      --purple-dark:  #512da8;
+      --purple-light: #ede7f6;
+      --red:    #d32f2f;
+      --orange: #e65100;
+      --green:  #2e7d32;
+      --bg:     #f0ebf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', 'Yu Gothic', sans-serif;
+      background: var(--bg);
+      padding: 20px 16px 60px;
+      font-size: 14px;
+      color: #333;
+      line-height: 1.6;
+    }
+    .wrap { max-width: 680px; margin: 0 auto; }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.12);
+      padding: 24px;
+      margin-bottom: 12px;
+    }
+    .card.top-border { border-top: 8px solid var(--purple); }
+    .card h1 { font-size: 22px; color: #222; margin-bottom: 6px; }
+    .sub-desc { color: #777; font-size: 13px; }
+
+    .field { margin-bottom: 22px; }
+    .field:last-child { margin-bottom: 0; }
+    .field > label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    .field > label .req  { color: var(--red); margin-left: 3px; }
+    .field > label .hint {
+      font-weight: 400;
+      color: #aaa;
+      font-size: 12px;
+      margin-left: 6px;
+    }
+
+    input[type=text], input[type=date], select {
+      width: 100%;
+      border: none;
+      border-bottom: 1px solid #ccc;
+      padding: 8px 2px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      background: transparent;
+      transition: border-color .2s;
+    }
+    input[type=text]:focus, input[type=date]:focus, select:focus {
+      border-bottom: 2px solid var(--purple);
+    }
+    select { cursor: pointer; }
+
+    .ta-box {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      overflow: hidden;
+      transition: border-color .2s;
+    }
+    .ta-box:focus-within { border: 2px solid var(--purple); }
+    textarea {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      font-family: 'Courier New', 'Osaka-Mono', monospace;
+      line-height: 1.8;
+      border: none;
+      outline: none;
+      resize: vertical;
+      background: #fafafa;
+    }
+    #content   { min-height: 280px; }
+    #contact   { min-height: 60px; }
+
+    .ta-footer {
+      background: #f0f0f0;
+      border-top: 1px solid #e0e0e0;
+      padding: 6px 12px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: #777;
+    }
+    #stat-over { color: var(--orange); font-weight: 600; }
+
+    .line-detail {
+      margin-top: 6px;
+      max-height: 130px;
+      overflow-y: auto;
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 12px;
+      line-height: 2;
+      display: none;
+    }
+    .line-ok   { color: #bbb; }
+    .line-warn { color: var(--orange); font-weight: 600; }
+
+    .check-panel {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .check-panel.clean  { background: #e8f5e9; color: var(--green); }
+    .check-panel.issues { background: #fff8e1; color: #5d4037; }
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 4px 0;
+    }
+    .check-ico { flex-shrink: 0; font-size: 15px; }
+    .fix-btn {
+      display: inline-block;
+      padding: 2px 10px;
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: 8px;
+      white-space: nowrap;
+    }
+    .fix-btn:hover { background: var(--purple-dark); }
+
+    .preview-toggle {
+      background: none;
+      border: none;
+      color: var(--purple);
+      cursor: pointer;
+      font-size: 13px;
+      text-decoration: underline;
+      padding: 0;
+      margin-top: 12px;
+      display: none;
+    }
+
+    /* テキストプレビュー */
+    .preview-box {
+      margin-top: 8px;
+      background: #fff;
+      border: 2px solid var(--purple-light);
+      border-radius: 4px;
+      padding: 16px 18px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.9;
+      white-space: pre;
+      max-height: 420px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      color: #333;
+      display: none;
+    }
+
+    .sec-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--purple);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      border-bottom: 1px solid var(--purple-light);
+      padding-bottom: 6px;
+      margin-bottom: 18px;
+    }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      padding: 11px 24px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: 500;
+      transition: background .2s, opacity .2s;
+    }
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { background: var(--purple-dark); }
+    .btn-outline { background: #fff; border: 1px solid var(--purple); color: var(--purple); }
+    .btn-outline:hover { background: var(--purple-light); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .alert {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .alert-success { background: #e8f5e9; color: #1b5e20; border-left: 4px solid #4caf50; }
+    .alert-error   { background: #ffebee; color: #b71c1c; border-left: 4px solid #f44336; font-weight: 500; }
+
+    .info-box {
+      margin-top: 14px;
+      background: #e8eaf6;
+      border: 1px solid #c5cae9;
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #283593;
+      line-height: 1.8;
+    }
+    .info-box code {
+      background: #c5cae9;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+    .ai-note {
+      margin-top: 10px;
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #1565c0;
+      line-height: 1.7;
+    }
+    .spec-note {
+      background: #fffde7;
+      border-left: 4px solid #f9a825;
+    }
+    .spec-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #5d4037;
+      margin-bottom: 10px;
+    }
+    .spec-list {
+      margin: 0;
+      padding-left: 1.4em;
+      font-size: 13px;
+      color: #4e342e;
+      line-height: 2;
+    }
+    .spec-list li strong { color: #b71c1c; }
+    .contact-check-label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #fff3e0;
+      border: 1px solid #ffb74d;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #e65100;
+      font-weight: 600;
+      cursor: pointer;
+      line-height: 1.5;
+    }
+    .contact-check-label input[type=checkbox] {
+      margin-top: 2px;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      accent-color: var(--purple);
+      cursor: pointer;
+    }
+    .contact-check-label.checked {
+      background: #e8f5e9;
+      border-color: #81c784;
+      color: var(--green);
+    }
+    .spec-list code {
+      background: #ffe082;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: #4e342e;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ヘッダー -->
+  <div class="card top-border">
+    <h1>メルマガ原稿フォーム</h1>
+    <p class="sub-desc">原稿を入力して「チェック実行」→「テキスト保存」。ダウンロードされたファイルを管理フォルダへ（メールでご案内した場所に）移動してください。</p>
+  </div>
+
+  <!-- 入力仕様の注意書き -->
+  <div class="card spec-note">
+    <div class="spec-title">📋 入力仕様について</div>
+    <ul class="spec-list">
+      <li>文頭（1行目）は段落の始まりとみなし、先頭に<strong>全角スペースが自動で入ります</strong>。</li>
+      <li><strong>Enterキーで改行</strong>すると、段落が変わったとみなして次の行の先頭に全角スペースが自動で入ります。</li>
+      <li>全角スペースが不要な場合（箇条書きや見出しなど）は、Backspaceで全角スペースを削除してください。削除しても<strong>改行位置は保持されます</strong>。</li>
+      <li>保持された改行をさらにBackspaceすると、前の行に戻ります（改行を完全に取り消す）。</li>
+      <li>本文は全体的に<strong>20文字で自動改行</strong>されます。前の行が20文字未満になると、次の行から文字が自動で引き戻されます。</li>
+      <li>URL・メールアドレスを含む行は<strong>自動改行の対象外</strong>です（リンクが切れないようにするため）。</li>
+      <li><strong>取り消し（Undo）</strong>：Mac は <code>Cmd+Z</code>、Windows は <code>Ctrl+Z</code></li>
+      <li><strong>やり直し（Redo）</strong>：Mac は <code>Cmd+Shift+Z</code>、Windows は <code>Ctrl+Y</code></li>
+    </ul>
+  </div>
+
+  <form id="mainForm" novalidate>
+
+    <!-- 部署名 -->
+    <div class="card">
+      <div class="field">
+        <label>部署名<span class="req">*</span></label>
+        <select id="department">
+          <option value="">— 選択してください —</option>
+          <option>はじめに</option>
+          <option>会長挨拶</option>
+          <option>板診塾</option>
+          <option>研修部</option>
+          <option>総務部</option>
+          <option>地域支援部</option>
+          <option>事業支援部</option>
+          <option>国際部</option>
+          <option>会員部</option>
+          <option>渉外部</option>
+          <option>コンプライアンス室</option>
+          <option>広報部</option>
+          <option>板橋区簡易型BCP策定支援事業</option>
+          <option>その他（自由入力）</option>
+        </select>
+        <input type="text" id="department_custom" placeholder="部署名を入力"
+               style="display:none; margin-top:8px;">
+      </div>
+    </div>
+
+    <!-- 本文 -->
+    <div class="card">
+      <div class="sec-title">本文</div>
+      <div class="field">
+        <label>
+          本文<span class="req">*</span>
+          <span class="hint">20文字で自動改行 / Enterで改行すると行頭に全角スペースを自動挿入</span>
+        </label>
+        <div class="ta-box">
+          <textarea id="content"
+            placeholder="部署の活動内容を入力してください。"></textarea>
+          <div class="ta-footer">
+            <span id="stat-chars">0文字</span>
+            <span id="stat-lines">0行</span>
+            <span id="stat-over"></span>
+          </div>
+        </div>
+        <div id="line-detail" class="line-detail"></div>
+        <div id="content-check"></div>
+        <button type="button" class="preview-toggle" id="preview-btn" onclick="togglePreview()">
+          ▶ 出力プレビューを表示
+        </button>
+        <div id="preview-box" class="preview-box"></div>
+      </div>
+    </div>
+
+    <!-- アクション -->
+    <div class="card">
+      <div class="sec-title">チェック・保存</div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="runAllChecks()">チェックを実行</button>
+        <button type="submit" class="btn btn-primary" id="save-btn">テキストを保存</button>
+      </div>
+
+      <!-- エラー・成功メッセージ（ボタン直下） -->
+      <div id="save-result"></div>
+
+      <label class="contact-check-label" id="contact-check-wrap">
+        <input type="checkbox" id="contact-check">
+        問い合わせ先（連絡先・メールアドレスなど）を本文に記載しましたか？
+      </label>
+      <div class="info-box">
+        📥 <strong>保存について</strong><br>
+        「テキストを保存」を押すと、メルマガ形式に整形されたテキストファイルがダウンロードされます。<br>
+        ・段落の先頭に全角スペースを自動挿入します<br>
+        ・1行20文字を超える場合は自動改行されます<br>
+        ファイルはブラウザの「ダウンロード」フォルダに自動保存されます。保存後、管理フォルダへ（メールでご案内した場所に）移動してください。<br>
+        ファイル名の形式：<code>YYYYMMDD_HHMMSS_部署名.txt</code>
+      </div>
+      <div class="ai-note">
+        💡 <strong>誤字脱字チェックについて</strong><br>
+        全角数字・全角英字・繰り返し文字などの基本チェックは自動で行います。<br>
+        同音異義語や文脈エラーなど、より高度な検出にはAI連携が必要です（現バージョンは対応外）。
+      </div>
+    </div>
+
+  </form>
+</div>
+
+<script>
+'use strict';
+
+const $ = id => document.getElementById(id);
+
+/* ===== 変換ユーティリティ ===== */
+
+const toHalfNum = str =>
+  str.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+
+const toHalfAlpha = str =>
+  str.replace(/[Ａ-Ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+     .replace(/[ａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
+const hasFullWidthNum   = str => /[０-９]/.test(str);
+const hasFullWidthAlpha = str => /[Ａ-Ｚａ-ｚ]/.test(str);
+
+const esc = s =>
+  s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* ===== trim：全角スペースは残し、半角スペース・改行のみ除去 =====
+   JavaScript標準の .trim() は全角スペース（U+3000）も除去してしまうため、
+   段落頭の　が消えないよう専用関数を使う。
+================================================ */
+function trimContent(str) {
+  return str.replace(/^[ \t\n\r]+|[ \t\n\r]+$/g, '');
+}
+
+/* ===== URLまたはメールアドレスを含む行は改行しない ===== */
+function isNoWrapLine(line) {
+  if (/https?:\/\//.test(line)) return true;  // URL
+  if (/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/.test(line)) return true; // メール
+  return false;
+}
+
+/* ===== 20文字改行 ===== */
+function wrapAt20(text) {
+  return text.split('\n').map(line => {
+    if (line.length <= 20) return line;
+    if (isNoWrapLine(line)) return line; // URL・メールアドレス行はそのまま
+    const chunks = [];
+    for (let i = 0; i < line.length; i += 20) chunks.push(line.slice(i, i + 20));
+    return chunks.join('\n');
+  }).join('\n');
+}
+
+/* ===== メルマガ形式テキストの組み立て ===== */
+function buildNewsletterText(department, content) {
+  // ZWS（改行保護マーカー）を除去してから出力
+  const cleaned   = content.replace(new RegExp(ZWS, 'g'), '');
+  const formatted = wrapAt20(cleaned);
+  return `【${department}】\n\n${formatted}\n`;
+}
+
+/* ===== 部署名の取得 ===== */
+function getDepartment() {
+  const sel = $('department').value;
+  if (sel === 'その他（自由入力）') return $('department_custom').value.trim();
+  return sel;
+}
+
+/* ===== 現在日時文字列 ===== */
+function nowString() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+}
+
+/* ===== 部署選択の「その他」制御 ===== */
+$('department').addEventListener('change', function () {
+  const isOther = this.value === 'その他（自由入力）';
+  $('department_custom').style.display = isOther ? 'block' : 'none';
+});
+
+/* ===== リアルタイム20文字整形（折り返し＋引き戻し） =====
+   ・20文字を超えた行は次の行へ折り返す
+   ・前の行が20文字未満のとき、続きの行から文字を引き戻して詰める
+   ・以下の行は整形対象外（そのまま保持）：
+     - 空行
+     - 　で始まる行（手動Enterによる段落先頭）
+     - URL・メールアドレスを含む行
+================================================ */
+const contentEl = $('content');
+let _wrapping = false;
+
+// pos の \n が自動折り返しによるものか（手動改行＝段落区切りではないか）を判定
+function isAutoWrapNL(text, pos) {
+  if (text[pos] !== '\n') return false;
+  if (pos + 1 >= text.length) return false;       // 末尾の \n は手動扱い
+  const next = text[pos + 1];
+  if (next === '\n' || next === '　' || next === ZWS) return false; // 空行 or 段落先頭 = 手動
+  const lineEnd = text.indexOf('\n', pos + 1);
+  const nextLine = lineEnd === -1 ? text.slice(pos + 1) : text.slice(pos + 1, lineEnd);
+  if (isNoWrapLine(nextLine)) return false;         // URL/メール行の前 = 手動扱い
+  return true; // 自動折り返し \n
+}
+
+// カーソル物理位置 → 論理位置（自動折り返し \n を除いた文字数）
+function logicalCursor(text, physPos) {
+  let n = 0;
+  for (let i = 0; i < physPos; i++) {
+    if (!isAutoWrapNL(text, i)) n++;
+  }
+  return n;
+}
+
+// 論理位置 → カーソル物理位置（逆算）
+function physCursor(text, logPos) {
+  let n = 0;
+  for (let i = 0; i <= text.length; i++) {
+    if (n === logPos) return i;
+    if (i < text.length && !isAutoWrapNL(text, i)) n++;
+  }
+  return text.length;
+}
+
+function enforceWrap() {
+  if (_wrapping) return;
+
+  const original  = contentEl.value;
+  const cursorPos = contentEl.selectionStart;
+  const lines     = original.split('\n');
+  const out       = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // 空行：そのまま保持
+    if (line === '') { out.push(line); i++; continue; }
+
+    // URL・メール行：そのまま保持
+    if (isNoWrapLine(line)) { out.push(line); i++; continue; }
+
+    // 段落を収集：この行 ＋ 後続の継続行
+    // 継続行の条件：空行でない・　で始まらない・URL/メールでない
+    let para = line;
+    let j = i + 1;
+    while (j < lines.length) {
+      const next = lines[j];
+      if (next === '' || next.startsWith('　') || next.startsWith(ZWS) || isNoWrapLine(next)) break;
+      para += next;
+      j++;
+    }
+
+    // 段落を20文字ごとに折り返して出力
+    for (let p = 0; p < para.length; p += 20) {
+      out.push(para.slice(p, p + 20));
+    }
+
+    i = j;
+  }
+
+  const newText = out.join('\n');
+
+  if (newText !== original) {
+    const logPos = logicalCursor(original, cursorPos);
+    _wrapping = true;
+    contentEl.value = newText;
+    const nc = physCursor(newText, logPos);
+    contentEl.setSelectionRange(nc, nc);
+    _wrapping = false;
+  }
+}
+
+/* ===== リアルタイム統計 ===== */
+
+function updateStats() {
+  const text  = contentEl.value;
+  const lines = text.split('\n');
+
+  $('stat-chars').textContent = text.length + '文字';
+  $('stat-lines').textContent = lines.length + '行';
+  $('stat-over').textContent  = '';   // 強制改行ON時は超過行なし
+
+  // 行詳細パネルは不要になるので非表示
+  $('line-detail').style.display = 'none';
+
+  if ($('preview-box').style.display !== 'none') updatePreview();
+  $('preview-btn').style.display = text.trim() ? 'inline' : 'none';
+}
+
+/* ===== 改行保護マーカー =====
+   ZWS（ゼロ幅スペース）を不可視の「意図的改行マーカー」として使う。
+   表示・出力には影響しない。enforceWrap がこれを段落区切りとして認識する。
+================================================ */
+const ZWS = '\u200B';
+
+/* ===== 1行目：フォーカス時に全角スペースを自動挿入 ===== */
+contentEl.addEventListener('focus', () => {
+  if (contentEl.value === '') {
+    contentEl.value = '　';
+    contentEl.setSelectionRange(1, 1);
+  }
+});
+// 何も入力せずに離れたら元の空状態に戻す（プレースホルダーを復活させる）
+contentEl.addEventListener('blur', () => {
+  if (contentEl.value === '　') contentEl.value = '';
+});
+
+/* ===== Undo / Redo スタック =====
+   contentEl.value を直接書き換えるとブラウザのネイティブUndoが
+   クリアされるため、独自スタックで管理する。
+================================================ */
+const undoStack = [];   // 過去の状態
+const redoStack = [];   // Redo用
+
+function saveUndo() {
+  const state = { v: contentEl.value, c: contentEl.selectionStart };
+  const last  = undoStack[undoStack.length - 1];
+  if (last && last.v === state.v) return; // 変化なければ保存しない
+  undoStack.push(state);
+  redoStack.length = 0; // 新しい編集でRedoをクリア
+  if (undoStack.length > 300) undoStack.shift(); // 最大300件
+}
+
+let _saveTimer = null;
+function scheduleSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveUndo, 600); // 600ms無操作でチェックポイント保存
+}
+
+/* ===== IME 変換フラグ ===== */
+let _isComposing = false;
+contentEl.addEventListener('compositionstart', () => { _isComposing = true; });
+contentEl.addEventListener('compositionend', () => {
+  _isComposing = false;
+  saveUndo(); // 変換確定をひとつのUndo単位として保存
+  enforceWrap();
+  updateStats();
+  liveCheck('content');
+});
+
+/* ===== キー操作（Undo/Redo / Enter / Backspace） ===== */
+contentEl.addEventListener('keydown', e => {
+
+  const isMac  = navigator.platform.toUpperCase().includes('MAC');
+  const mod    = isMac ? e.metaKey : e.ctrlKey; // Mac=Cmd、Win=Ctrl
+
+  /* ---------- Undo：Cmd+Z / Ctrl+Z ---------- */
+  if (mod && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    if (undoStack.length > 0) {
+      redoStack.push({ v: contentEl.value, c: contentEl.selectionStart });
+      const prev = undoStack.pop();
+      contentEl.value = prev.v;
+      contentEl.setSelectionRange(prev.c, prev.c);
+      updateStats();
+    }
+    return;
+  }
+
+  /* ---------- Redo：Cmd+Shift+Z / Ctrl+Y / Ctrl+Shift+Z ---------- */
+  if ((mod && e.key === 'y') || (mod && e.shiftKey && e.key === 'z')) {
+    e.preventDefault();
+    if (redoStack.length > 0) {
+      undoStack.push({ v: contentEl.value, c: contentEl.selectionStart });
+      const next = redoStack.pop();
+      contentEl.value = next.v;
+      contentEl.setSelectionRange(next.c, next.c);
+      updateStats();
+    }
+    return;
+  }
+
+  if (_isComposing || e.isComposing) return; // IME変換中は以下を無視
+
+  const text   = contentEl.value;
+  const cursor = contentEl.selectionStart;
+  const selEnd = contentEl.selectionEnd;
+
+  /* ---------- Enter：改行 + 全角スペース ---------- */
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    saveUndo(); // 変更前の状態を保存
+    contentEl.value = text.slice(0, cursor) + '\n　' + text.slice(selEnd);
+    contentEl.setSelectionRange(cursor + 2, cursor + 2);
+    contentEl.dispatchEvent(new Event('input'));
+    return;
+  }
+
+  /* ---------- Backspace：行頭の特殊文字に対する処理 ---------- */
+  if (e.key === 'Backspace' && cursor === selEnd) {
+    const prevChar  = cursor > 0 ? text[cursor - 1] : '';
+    const isLineTop = cursor <= 1 || text[cursor - 2] === '\n';
+
+    // ① 行頭の 　 → ZWS に置き換えて改行を保護
+    if (prevChar === '　' && isLineTop) {
+      e.preventDefault();
+      saveUndo();
+      contentEl.value = text.slice(0, cursor - 1) + ZWS + text.slice(cursor);
+      contentEl.setSelectionRange(cursor, cursor);
+      contentEl.dispatchEvent(new Event('input'));
+      return;
+    }
+
+    // ② 行頭のZWS → ZWSと直前の \n をまとめて削除（前の行に戻る）
+    if (prevChar === ZWS && isLineTop) {
+      e.preventDefault();
+      saveUndo();
+      const from = cursor >= 2 && text[cursor - 2] === '\n' ? cursor - 2 : cursor - 1;
+      contentEl.value = text.slice(0, from) + text.slice(cursor);
+      contentEl.setSelectionRange(from, from);
+      contentEl.dispatchEvent(new Event('input'));
+      return;
+    }
+  }
+});
+
+contentEl.addEventListener('input', () => {
+  if (_isComposing) return; // IME変換中は一切処理しない
+  scheduleSave(); // 600ms後にチェックポイント保存
+  enforceWrap();
+  updateStats();
+  liveCheck('content');
+});
+
+/* ===== ライブ全角チェック ===== */
+function liveCheck(id) {
+  const val = $(id).value;
+  const out = $(id + '-check');
+  if (!out) return;
+  const hasN = hasFullWidthNum(val), hasA = hasFullWidthAlpha(val);
+  if (!hasN && !hasA) { out.innerHTML = ''; return; }
+  let items = '';
+  if (hasN) items += item('⚠️', '全角数字が含まれています。数字は半角で入力してください。', `fixFW('${id}','num')`);
+  if (hasA) items += item('⚠️', '全角アルファベットが含まれています。半角に変換してください。', `fixFW('${id}','alpha')`);
+  out.innerHTML = `<div class="check-panel issues">${items}</div>`;
+}
+
+function item(icon, msg, fixCall) {
+  const btn = fixCall ? `<button class="fix-btn" onclick="${fixCall}">自動修正</button>` : '';
+  return `<div class="check-item"><span class="check-ico">${icon}</span><span>${msg}${btn}</span></div>`;
+}
+
+/* ===== 自動修正 ===== */
+function fixFW(id, type) {
+  const el = $(id);
+  if (type === 'num')   el.value = toHalfNum(el.value);
+  if (type === 'alpha') el.value = toHalfAlpha(el.value);
+  el.dispatchEvent(new Event('input'));
+}
+
+/* ===== 全チェック ===== */
+function runAllChecks() {
+  const dept    = getDepartment();
+  const content = trimContent(contentEl.value);
+  const errors  = [];
+
+  if (!dept)    errors.push('・部署名が選択されていません。');
+  if (!content) errors.push('・本文が入力されていません。');
+  if (!$('contact-check').checked) errors.push('・「問い合わせ先を記載しましたか？」にチェックが入っていません。');
+
+  if (errors.length > 0) {
+    $('save-result').innerHTML =
+      `<div class="alert alert-error"><strong>⚠️ 以下の項目を確認してください</strong><br>${errors.join('<br>')}</div>`;
+    return;
+  }
+
+  // 各フィールドの内容チェック
+  checkContent();
+  $('save-result').innerHTML = '<div class="alert alert-success">✅ 入力内容に問題は見つかりませんでした。</div>';
+}
+
+function checkContent() {
+  const text = contentEl.value.trim();
+  const out  = $('content-check');
+  if (!text) return;
+
+  const issues = [];
+
+  if (hasFullWidthNum(text))
+    issues.push({ icon:'⚠️', msg:'全角数字が含まれています。', fix:"fixFW('content','num')" });
+
+  if (hasFullWidthAlpha(text))
+    issues.push({ icon:'⚠️', msg:'全角アルファベットが含まれています。', fix:"fixFW('content','alpha')" });
+
+  const triples = text.match(/(.)\1{2,}/g);
+  if (triples) {
+    const uniq = [...new Set(triples)];
+    issues.push({ icon:'🔍', msg:`同じ文字が3回以上連続：「${uniq.join('」「')}」 — 意図的かご確認ください。`, fix: null });
+  }
+
+  if (/[ \u3000]{2,}/.test(text))
+    issues.push({ icon:'🔍', msg:'スペースが連続しています。ご確認ください。', fix: null });
+
+  const overCount = text.split('\n').filter(l => l.length > 20).length;
+  if (overCount > 0)
+    issues.push({ icon:'📏', msg:`${overCount}行が20文字を超えています。保存時に自動改行されます。プレビューで確認してください。`, fix: null });
+
+  renderChecks(out, issues);
+}
+
+function renderChecks(outEl, issues) {
+  if (issues.length === 0) {
+    outEl.innerHTML = '<div class="check-panel clean">✅ チェック完了：問題は見つかりませんでした。</div>';
+    return;
+  }
+  outEl.innerHTML = `<div class="check-panel issues">${issues.map(i => item(i.icon, i.msg, i.fix)).join('')}</div>`;
+}
+
+/* ===== プレビュー ===== */
+let previewOpen = false;
+function togglePreview() {
+  previewOpen = !previewOpen;
+  $('preview-box').style.display = previewOpen ? 'block' : 'none';
+  $('preview-btn').textContent = previewOpen ? '▼ プレビューを閉じる' : '▶ 出力プレビューを表示';
+  if (previewOpen) updatePreview();
+}
+function updatePreview() {
+  const dept    = getDepartment() || '（部署名未選択）';
+  const content = trimContent(contentEl.value);
+  $('preview-box').textContent = content
+    ? buildNewsletterText(dept, content)
+    : '（本文を入力するとプレビューが表示されます）';
+}
+
+// 問い合わせ先チェックボックスの見た目を切り替え
+$('contact-check').addEventListener('change', function () {
+  $('contact-check-wrap').classList.toggle('checked', this.checked);
+});
+
+// 部署変更もプレビューに反映
+['department', 'department_custom'].forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener('input', () => {
+    if (previewOpen) updatePreview();
+  });
+});
+
+/* ===== テキストダウンロード ===== */
+function downloadText(text, filename) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ===== フォーム送信 ===== */
+$('mainForm').addEventListener('submit', e => {
+  e.preventDefault();
+
+  const department = getDepartment();
+  const content    = trimContent(contentEl.value);
+
+  if (!department) {
+    $('save-result').innerHTML = '<div class="alert alert-error">部署名を選択または入力してください。</div>';
+    return;
+  }
+  if (!content) {
+    $('save-result').innerHTML = '<div class="alert alert-error">本文を入力してください。</div>';
+    return;
+  }
+  if (!$('contact-check').checked) {
+    $('save-result').innerHTML = '<div class="alert alert-error">⚠️ 問い合わせ先の記載を確認してからチェックを入れてください。</div>';
+    $('contact-check-wrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  const text = buildNewsletterText(department, content);
+  const safeDept = department.replace(/[\/\\:*?"<>|]/g, '');
+  const filename = `${nowString()}_${safeDept}.txt`;
+
+  downloadText(text, filename);
+
+  $('save-result').innerHTML =
+    `<div class="alert alert-success">✅ <strong>${filename}</strong> をダウンロードしました。<br>ファイルサーバーの管理フォルダに移動してください。</div>`;
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% block title %}組版ツール vol.{{ cycle.vol }}{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="/cycle/{{ cycle.id }}" class="text-muted text-decoration-none small">
+    <i class="bi bi-chevron-left me-1"></i>vol.{{ cycle.vol }} {{ cycle.delivery_month }}月号 に戻る
+  </a>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 fw-bold mb-0">
+      <i class="bi bi-layout-text-window me-2"></i>メルマガ組版ツール
+    </h1>
+    <small class="text-muted">vol.{{ cycle.vol }} {{ cycle.delivery_year }}年{{ cycle.delivery_month }}月号</small>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary" onclick="buildNewsletter()">
+      <i class="bi bi-play-fill me-1"></i>組版を実行
+    </button>
+  </div>
+</div>
+
+{% if not articles %}
+<div class="alert alert-warning">
+  <i class="bi bi-folder-x me-2"></i>
+  原稿ファイルが見つかりません。<br>
+  <a href="/cycle/{{ cycle.id }}#tab-articles">原稿管理タブ</a>でフォルダを設定してから、XServerからダウンロードした .txt ファイルを配置してください。
+</div>
+{% else %}
+
+<div class="row g-3">
+
+  <!-- 左カラム: 設定 + 記事リスト -->
+  <div class="col-lg-5">
+
+    <!-- ヘッダー設定 -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-card-heading me-2"></i>ヘッダー設定</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-4">
+            <label class="form-label small fw-semibold">Vol番号</label>
+            <input type="number" class="form-control form-control-sm" id="hdr-vol"
+                   value="{{ cycle.vol }}">
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">年</label>
+            <input type="number" class="form-control form-control-sm" id="hdr-year"
+                   value="{{ cycle.delivery_year }}">
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">月</label>
+            <input type="number" class="form-control form-control-sm" id="hdr-month"
+                   value="{{ cycle.delivery_month }}">
+          </div>
+        </div>
+        <div class="mt-2">
+          <label class="form-label small fw-semibold">はじめに（任意）</label>
+          <textarea class="form-control form-control-sm" id="hdr-intro" rows="3"
+                    placeholder="編集長からのコメントなど（省略可）"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 記事リスト（ドラッグ＆ドロップ） -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-list-ul me-2"></i>記事一覧（ドラッグで並び替え）</h6>
+        <span class="badge bg-secondary">{{ articles | length }}件</span>
+      </div>
+      <div class="card-body p-2">
+        <div id="article-list">
+          {% for art in articles %}
+          <div class="article-item" data-id="{{ art.filename }}"
+               data-dept="{{ art.dept }}" data-body="{{ art.body | e }}">
+            <div class="d-flex align-items-start gap-2">
+              <div class="drag-handle" title="ドラッグで並び替え">
+                <i class="bi bi-grip-vertical"></i>
+              </div>
+              <div class="flex-grow-1 min-w-0">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold small">{{ art.dept }}</span>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted" style="font-size:11px;">{{ art.modified }}</span>
+                    <div class="form-check mb-0">
+                      <input class="form-check-input include-check" type="checkbox"
+                             checked id="chk-{{ loop.index }}">
+                    </div>
+                  </div>
+                </div>
+                <div class="text-muted small text-truncate mt-1" style="font-size:11px;">
+                  {{ art.preview }}…
+                </div>
+              </div>
+            </div>
+            <!-- 展開して本文を表示 -->
+            <details class="mt-1">
+              <summary class="text-muted" style="font-size:11px; cursor:pointer;">
+                本文を確認する
+              </summary>
+              <pre class="article-preview-text mt-1">{{ art.body }}</pre>
+            </details>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 右カラム: プレビュー -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-eye me-2"></i>組版プレビュー</h6>
+        <div class="d-flex gap-2" id="export-btns" style="display:none!important;">
+          <button class="btn btn-sm btn-success" onclick="copyNewsletter()">
+            <i class="bi bi-clipboard-check me-1"></i>コピー
+          </button>
+          <button class="btn btn-sm btn-outline-primary" onclick="downloadNewsletter()">
+            <i class="bi bi-download me-1"></i>ダウンロード
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0 d-flex flex-column">
+        <div id="preview-placeholder" class="text-center text-muted py-5">
+          <i class="bi bi-layout-text-window display-4 d-block mb-3"></i>
+          「組版を実行」ボタンを押すと<br>ここにプレビューが表示されます
+        </div>
+        <div id="preview-area" style="display:none;" class="flex-grow-1 d-flex flex-column">
+          <pre id="preview-text" class="newsletter-preview flex-grow-1"></pre>
+        </div>
+        <div id="copy-toast" class="copy-toast" style="display:none;">
+          <i class="bi bi-check-circle-fill me-1"></i>クリップボードにコピーしました！
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /row -->
+{% endif %}
+{% endblock %}
+
+
+{% block scripts %}
+<!-- SortableJS (ドラッグ＆ドロップ) -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+
+<style>
+.article-item {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  cursor: default;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.article-item:hover { border-color: #bee3f8; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.article-item.sortable-ghost { opacity: 0.4; }
+.article-item.sortable-drag  { box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+
+.article-item.excluded {
+  opacity: 0.45;
+  background: #f7f8fc;
+}
+
+.drag-handle {
+  color: #a0aec0;
+  cursor: grab;
+  padding: 2px 4px;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.drag-handle:active { cursor: grabbing; }
+
+.article-preview-text {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.newsletter-preview {
+  font-family: 'Courier New', 'Hiragino Sans', monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 20px;
+  background: #fafafa;
+  margin: 0;
+  min-height: 400px;
+  line-height: 1.9;
+}
+
+.copy-toast {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  background: #38a169; color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 9999;
+}
+</style>
+
+<script>
+let _newsletterText = '';
+
+// ── ドラッグ＆ドロップ初期化 ──
+const listEl = document.getElementById('article-list');
+if (listEl) {
+  Sortable.create(listEl, {
+    animation: 150,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+    dragClass: 'sortable-drag',
+  });
+
+  // チェックボックスのON/OFFで記事を薄表示
+  listEl.addEventListener('change', e => {
+    if (!e.target.classList.contains('include-check')) return;
+    const item = e.target.closest('.article-item');
+    item.classList.toggle('excluded', !e.target.checked);
+  });
+}
+
+// ── 組版実行 ──
+async function buildNewsletter() {
+  const items = document.querySelectorAll('#article-list .article-item');
+  const order = [];
+
+  items.forEach(item => {
+    const chk = item.querySelector('.include-check');
+    if (!chk || !chk.checked) return;  // 除外チェックされているものはスキップ
+
+    order.push({
+      id:   item.dataset.id,
+      dept: item.dataset.dept,
+      body: item.dataset.body,
+    });
+  });
+
+  if (order.length === 0) {
+    alert('掲載する記事が選択されていません。チェックボックスをONにしてください。');
+    return;
+  }
+
+  const header = {
+    vol:   document.getElementById('hdr-vol').value,
+    year:  document.getElementById('hdr-year').value,
+    month: document.getElementById('hdr-month').value,
+    intro: document.getElementById('hdr-intro').value,
+  };
+
+  const btn = document.querySelector('button[onclick="buildNewsletter()"]');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>組版中...';
+
+  try {
+    const res = await fetch('/api/cycle/{{ cycle.id }}/build-newsletter', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ order, header }),
+    });
+    const data = await res.json();
+
+    _newsletterText = data.text;
+    document.getElementById('preview-placeholder').style.display = 'none';
+    document.getElementById('preview-area').style.display = 'flex';
+    document.getElementById('preview-text').textContent = _newsletterText;
+    document.getElementById('export-btns').style.display = 'flex';
+
+    // スクロールをプレビュートップへ
+    document.getElementById('preview-text').scrollTop = 0;
+
+  } catch (err) {
+    alert('エラーが発生しました: ' + err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>組版を実行';
+  }
+}
+
+// ── コピー ──
+function copyNewsletter() {
+  if (!_newsletterText) return;
+  navigator.clipboard.writeText(_newsletterText).then(() => {
+    const toast = document.getElementById('copy-toast');
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 2500);
+  });
+}
+
+// ── ダウンロード ──
+function downloadNewsletter() {
+  if (!_newsletterText) return;
+  const vol   = document.getElementById('hdr-vol').value;
+  const year  = document.getElementById('hdr-year').value;
+  const month = String(document.getElementById('hdr-month').value).padStart(2, '0');
+  const fname = `melmaga_vol${vol}_${year}${month}.txt`;
+
+  const blob = new Blob([_newsletterText], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

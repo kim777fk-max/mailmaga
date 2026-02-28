@@ -475,6 +475,134 @@ def api_submissions(cycle_id):
     return jsonify(scan_submissions(cycle.get('submissions_folder', '')))
 
 
+# ─── Phase 2: 組版ツール ──────────────────────────────────────────────────────
+
+def read_article_file(filepath):
+    """テキストファイルを読み込む（UTF-8 → Shift-JIS フォールバック）"""
+    for enc in ('utf-8', 'utf-8-sig', 'shift-jis', 'cp932'):
+        try:
+            with open(filepath, 'r', encoding=enc) as f:
+                return f.read()
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return '（ファイルの読み込みに失敗しました）'
+
+def parse_article(content):
+    """
+    melmaga.html 出力形式のテキストをパースする。
+    形式: 1行目=【部署名】, 空行, 本文
+    """
+    lines = content.strip().splitlines()
+    dept = ''
+    body_start = 0
+    if lines and lines[0].startswith('【') and lines[0].endswith('】'):
+        dept = lines[0][1:-1]
+        body_start = 2 if len(lines) > 1 and lines[1] == '' else 1
+    body = '\n'.join(lines[body_start:]).strip()
+    return dept, body
+
+def load_assemble_articles(cycle):
+    """提出フォルダから .txt 原稿を全件読み込み、記事リストを返す"""
+    folder = cycle.get('submissions_folder', '')
+    submissions = scan_submissions(folder)
+    dept_order  = {d: i for i, d in enumerate(DEPARTMENTS)}
+    articles = []
+
+    for dept_name, files in submissions.items():
+        for f in files:
+            if f['ext'] != '.txt':
+                continue
+            raw     = read_article_file(f['path'])
+            parsed_dept, body = parse_article(raw)
+            display_dept = parsed_dept or dept_name
+            articles.append({
+                'id':       f['filename'],
+                'filename': f['filename'],
+                'dept':     display_dept,
+                'body':     body,
+                'preview':  body[:80].replace('\n', ' '),
+                'modified': f['modified'],
+                'size_kb':  f['size_kb'],
+            })
+
+    articles.sort(key=lambda a: dept_order.get(a['dept'], 999))
+    return articles
+
+
+@app.route('/cycle/<cycle_id>/assemble')
+def assemble(cycle_id):
+    cycles = load_cycles()
+    cycle  = next((c for c in cycles if c['id'] == cycle_id), None)
+    if not cycle:
+        flash('見つかりません', 'error')
+        return redirect(url_for('dashboard'))
+
+    config   = load_config()
+    articles = load_assemble_articles(cycle)
+    sep      = '━' * 20
+
+    return render_template('assemble.html', cycle=cycle, config=config,
+                           articles=articles, sep=sep)
+
+
+@app.route('/api/cycle/<cycle_id>/build-newsletter', methods=['POST'])
+def build_newsletter_api(cycle_id):
+    cycles = load_cycles()
+    cycle  = next((c for c in cycles if c['id'] == cycle_id), None)
+    if not cycle:
+        return jsonify({'error': 'not found'}), 404
+
+    config = load_config()
+    data   = request.get_json()
+    order  = data.get('order', [])   # [{id, dept, body}, ...]
+    header = data.get('header', {})
+
+    vol   = header.get('vol',   cycle.get('vol', ''))
+    year  = header.get('year',  cycle.get('delivery_year', ''))
+    month = header.get('month', cycle.get('delivery_month', ''))
+    intro = header.get('intro', '').strip()
+
+    sep = '━' * 20
+    parts = []
+
+    # ── ヘッダー ──
+    parts.append(sep)
+    parts.append(f'メルマガいたしん vol.{vol}')
+    parts.append(f'{year}年{month}月')
+    parts.append(sep)
+    parts.append('')
+
+    # ── はじめに（任意） ──
+    if intro:
+        parts.append(intro)
+        parts.append('')
+        parts.append(sep)
+        parts.append('')
+
+    # ── 各記事 ──
+    for art in order:
+        dept = art.get('dept', '')
+        body = art.get('body', '').strip()
+        if not body:
+            continue
+        parts.append(f'【{dept}】')
+        parts.append('')
+        parts.append(body)
+        parts.append('')
+        parts.append(sep)
+        parts.append('')
+
+    # ── フッター ──
+    contact = config.get('contact_email', '')
+    parts.append('配信停止・変更はこちらへご連絡ください。')
+    if contact:
+        parts.append(contact)
+    parts.append(sep)
+
+    newsletter = '\n'.join(parts)
+    return jsonify({'text': newsletter})
+
+
 if __name__ == '__main__':
     print('=' * 50)
     print('メルマガいたしん 統合管理ツール')

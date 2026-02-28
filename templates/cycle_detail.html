@@ -178,6 +178,11 @@
               <strong>{{ submissions | length }}部署</strong>から提出あり
             </div>
           </div>
+          <div class="col-auto d-flex align-items-center">
+            <a href="/cycle/{{ cycle.id }}/assemble" class="btn btn-primary">
+              <i class="bi bi-layout-text-window me-1"></i>組版ツールを開く
+            </a>
+          </div>
         </div>
         <div class="row g-2">
           {% for dept_name, files in submissions.items() %}

@@ -42,26 +42,34 @@
       </div>
       <div class="card-body">
         <div class="row g-2">
-          <div class="col-4">
+          <div class="col-3">
             <label class="form-label small fw-semibold">Vol番号</label>
             <input type="number" class="form-control form-control-sm" id="hdr-vol"
                    value="{{ cycle.vol }}">
           </div>
-          <div class="col-4">
+          <div class="col-3">
             <label class="form-label small fw-semibold">年</label>
             <input type="number" class="form-control form-control-sm" id="hdr-year"
                    value="{{ cycle.delivery_year }}">
           </div>
-          <div class="col-4">
+          <div class="col-3">
             <label class="form-label small fw-semibold">月</label>
             <input type="number" class="form-control form-control-sm" id="hdr-month"
                    value="{{ cycle.delivery_month }}">
           </div>
+          <div class="col-3">
+            <label class="form-label small fw-semibold">日</label>
+            <input type="number" class="form-control form-control-sm" id="hdr-day"
+                   value="15" min="1" max="31">
+          </div>
         </div>
         <div class="mt-2">
-          <label class="form-label small fw-semibold">はじめに（任意）</label>
+          <label class="form-label small fw-semibold">
+            はじめに（原稿未提出の場合の代替テキスト）
+            <span class="text-muted fw-normal">―「はじめに」の記事が提出済みの場合はそちらを優先</span>
+          </label>
           <textarea class="form-control form-control-sm" id="hdr-intro" rows="3"
-                    placeholder="編集長からのコメントなど（省略可）"></textarea>
+                    placeholder="編集長からのコメントなど（提出済み原稿がある場合は不要）"></textarea>
         </div>
       </div>
     </div>
@@ -259,10 +267,11 @@ async function buildNewsletter() {
   }
 
   const header = {
-    vol:   document.getElementById('hdr-vol').value,
-    year:  document.getElementById('hdr-year').value,
-    month: document.getElementById('hdr-month').value,
-    intro: document.getElementById('hdr-intro').value,
+    vol:            document.getElementById('hdr-vol').value,
+    year:           document.getElementById('hdr-year').value,
+    month:          document.getElementById('hdr-month').value,
+    day:            document.getElementById('hdr-day').value,
+    intro_fallback: document.getElementById('hdr-intro').value,
   };
 
   const btn = document.querySelector('button[onclick="buildNewsletter()"]');
@@ -310,7 +319,8 @@ function downloadNewsletter() {
   const vol   = document.getElementById('hdr-vol').value;
   const year  = document.getElementById('hdr-year').value;
   const month = String(document.getElementById('hdr-month').value).padStart(2, '0');
-  const fname = `melmaga_vol${vol}_${year}${month}.txt`;
+  const day   = String(document.getElementById('hdr-day').value).padStart(2, '0');
+  const fname = `melmaga_vol${vol}_${year}${month}${day}.txt`;
 
   const blob = new Blob([_newsletterText], { type: 'text/plain;charset=utf-8' });
   const url  = URL.createObjectURL(blob);

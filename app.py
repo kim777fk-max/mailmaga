@@ -15,10 +15,25 @@ CONFIG_FILE    = os.path.join(DATA_DIR, 'config.json')
 TEMPLATES_FILE = os.path.join(DATA_DIR, 'email_templates.json')
 
 DEPARTMENTS = [
-    '会長挨拶', '板診塾', '副会長', '理事長',
-    '研究部', 'セミナー部', '広報部',
-    '板橋区簡易型BCP策定支援事業', 'プロジェクト', 'その他',
+    'はじめに',
+    '会長挨拶',
+    '板診塾',
+    '研修部',
+    '総務部',
+    '地域支援部',
+    '事業支援部',
+    '国際部',
+    '会員部',
+    '渉外部',
+    'コンプライアンス室',
+    '広報部',
+    '板橋区簡易型BCP策定支援事業',
+    'プロジェクト',
+    'その他',
 ]
+
+# 組版時に専用セクションとして扱う部署（各部活動紹介の外に出す）
+SPECIAL_DEPTS = {'はじめに', '会長挨拶'}
 
 STEPS = [
     {'key': 'schedule_mail',     'label': 'スケジュール案内',  'icon': '①', 'date_key': 'schedule_mail',     'has_email': True},
@@ -552,55 +567,129 @@ def build_newsletter_api(cycle_id):
     if not cycle:
         return jsonify({'error': 'not found'}), 404
 
-    config = load_config()
     data   = request.get_json()
-    order  = data.get('order', [])   # [{id, dept, body}, ...]
+    order  = data.get('order', [])   # [{dept, body}, ...]
     header = data.get('header', {})
 
     vol   = header.get('vol',   cycle.get('vol', ''))
     year  = header.get('year',  cycle.get('delivery_year', ''))
     month = header.get('month', cycle.get('delivery_month', ''))
-    intro = header.get('intro', '').strip()
+    day   = header.get('day',   '15')
 
-    sep = '━' * 20
-    parts = []
+    # フォームから「はじめに」が未提出の場合の代替テキスト
+    intro_fallback = header.get('intro_fallback', '').strip()
 
-    # ── ヘッダー ──
-    parts.append(sep)
-    parts.append(f'メルマガいたしん vol.{vol}')
-    parts.append(f'{year}年{month}月')
-    parts.append(sep)
-    parts.append('')
+    SEP_TOP = '〓＝〓＝〓＝〓＝〓＝〓＝〓＝〓＝〓＝〓＝'
+    SEP_MID = '=================================='
 
-    # ── はじめに（任意） ──
-    if intro:
-        parts.append(intro)
-        parts.append('')
-        parts.append(sep)
-        parts.append('')
-
-    # ── 各記事 ──
+    # 記事を部署名でマッピング（同一部署が複数ある場合は後者を優先）
+    art_map = {}
     for art in order:
-        dept = art.get('dept', '')
-        body = art.get('body', '').strip()
-        if not body:
+        d = art.get('dept', '').strip()
+        if d:
+            art_map[d] = art.get('body', '').strip()
+
+    P = []   # 最終テキストの行リスト
+
+    # ════════════════════════════════
+    # ヘッダーブロック
+    # ════════════════════════════════
+    P += [
+        SEP_TOP,
+        '',
+        '板診会会員向けメールマガジン',
+        '　 ■ メルマガいたしん ■',
+        f'　 vol.{vol} {year}年{month}月{day}日',
+        '',
+        '発行：(一社)板橋中小企業診断士協会広報部',
+        'WEB https://rmc-itabashi.jp/',
+        'FB https://www.facebook.com/itashinkai/',
+        '',
+        SEP_TOP,
+        '',
+        '',
+    ]
+
+    # ════════════════════════════════
+    # ◆ はじめに
+    # ════════════════════════════════
+    intro_body = art_map.get('はじめに', intro_fallback) or '（未提出）'
+    P += [
+        '◆　はじめに　　　---------------------',
+        '',
+        intro_body,
+        '',
+        '　　　　　　　　　  　（広報部　木村文彦）',
+        '',
+        '',
+    ]
+
+    # ════════════════════════════════
+    # ◆ 会長挨拶
+    # ════════════════════════════════
+    kaichou_body = art_map.get('会長挨拶', '') or '（未提出）'
+    P += [
+        '◆　会長挨拶　　　---------------------',
+        '',
+        kaichou_body,
+        '',
+        '　　　　　　　　　  　（会長　）',
+        '',
+        '',
+    ]
+
+    # ════════════════════════════════
+    # ◆ 各部活動紹介
+    # ════════════════════════════════
+    P += [
+        '◆　各部活動紹介　　　　---------------',
+        '',
+    ]
+
+    for art in order:
+        dept = art.get('dept', '').strip()
+        if dept in SPECIAL_DEPTS or not dept:
             continue
-        parts.append(f'【{dept}】')
-        parts.append('')
-        parts.append(body)
-        parts.append('')
-        parts.append(sep)
-        parts.append('')
+        body = art.get('body', '').strip() or '（未提出）'
+        P += [
+            f'【{dept}】',
+            '',
+            body,
+            '',
+            '',
+        ]
 
-    # ── フッター ──
-    contact = config.get('contact_email', '')
-    parts.append('配信停止・変更はこちらへご連絡ください。')
-    if contact:
-        parts.append(contact)
-    parts.append(sep)
+    # ════════════════════════════════
+    # フッターブロック
+    # ════════════════════════════════
+    P += [
+        SEP_MID,
+        f'■メルマガいたしんVol.{vol}はいかがでした',
+        'でしょうか。',
+        '皆様にご活用いただけるよう改善してまいり',
+        'たいと思いますので、ぜひ以下よりアンケー',
+        'ト回答にご協力ください。',
+        '',
+        '是非ご意見、ご感想をお聞かせください。',
+        'ご質問もお待ちしております。',
+        '(所要時間：1-2分)',
+        'https://forms.gle/TGdD1f7HGRCpxbjj7',
+        '',
+        '次回もご期待ください！',
+        '',
+        '【お問合せ先】mmp@rmc-itabashi.jp',
+        '',
+        '一般社団法人板橋中小企業診断士協会',
+        '会員向けメールマガジン',
+        '　　　　　　　「メルマガいたしん」',
+        '（奇数月15日発行）',
+        '【発行人】　　　会　　長　大東威司',
+        '【編集責任者】　広報部長　猿川明',
+        '【編集者】　　　広報部　　木村文彦',
+        SEP_MID,
+    ]
 
-    newsletter = '\n'.join(parts)
-    return jsonify({'text': newsletter})
+    return jsonify({'text': '\n'.join(P)})
 
 
 if __name__ == '__main__':

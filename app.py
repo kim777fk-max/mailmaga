@@ -600,6 +600,42 @@ def cycle_new():
                            suggested_month=sm, suggested_vol=sv)
 
 
+@app.route('/cycle/<cycle_id>/edit-info', methods=['POST'])
+@admin_required
+def cycle_edit_info(cycle_id):
+    """Vol番号・年・月を修正する。"""
+    cycles = load_cycles()
+    cycle  = next((c for c in cycles if c['id'] == cycle_id), None)
+    if not cycle:
+        flash('指定の号が見つかりません', 'error')
+        return redirect(url_for('dashboard'))
+
+    try:
+        new_vol   = int(request.form['vol'])
+        new_year  = int(request.form['delivery_year'])
+        new_month = int(request.form['delivery_month'])
+    except (KeyError, ValueError):
+        flash('入力値が不正です', 'error')
+        return redirect(url_for('cycle_detail', cycle_id=cycle_id))
+
+    new_id = f'{new_year}-{new_month:02d}'
+
+    # IDが変わる場合は重複チェック
+    if new_id != cycle_id and any(c['id'] == new_id for c in cycles):
+        flash(f'{new_year}年{new_month}月号はすでに登録されています', 'error')
+        return redirect(url_for('cycle_detail', cycle_id=cycle_id))
+
+    cycle['vol']            = new_vol
+    cycle['delivery_year']  = new_year
+    cycle['delivery_month'] = new_month
+    cycle['id']             = new_id
+    cycle['schedule']       = calc_schedule(new_year, new_month)
+
+    save_cycles(cycles)
+    flash('号情報を更新しました', 'success')
+    return redirect(url_for('cycle_detail', cycle_id=new_id))
+
+
 @app.route('/cycle/<cycle_id>')
 def cycle_detail(cycle_id):
     cycles = load_cycles()

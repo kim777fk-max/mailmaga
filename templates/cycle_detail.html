@@ -11,6 +11,13 @@
     <h1 class="h3 fw-bold mb-0 mt-1">
       メルマガいたしん vol.{{ cycle.vol }}
       <span class="text-muted fw-normal">{{ cycle.delivery_year }}年{{ cycle.delivery_month }}月号</span>
+      {% if is_admin %}
+      <button class="btn btn-sm btn-outline-secondary ms-2 py-0 px-2"
+              data-bs-toggle="modal" data-bs-target="#editInfoModal"
+              title="号情報を修正">
+        <i class="bi bi-pencil" style="font-size:.8rem;"></i>
+      </button>
+      {% endif %}
     </h1>
     <small class="text-muted">発行予定: {{ cycle.schedule.publish }}</small>
   </div>
@@ -411,4 +418,50 @@ async function xsCheck() {
   listEl.style.display = 'block';
 }
 </script>
+
+{% if is_admin %}
+<!-- 号情報編集モーダル -->
+<div class="modal fade" id="editInfoModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold"><i class="bi bi-pencil me-1"></i>号情報の修正</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/cycle/{{ cycle.id }}/edit-info">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Vol番号</label>
+            <input type="number" name="vol" class="form-control"
+                   value="{{ cycle.vol }}" min="1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">発行年</label>
+            <input type="number" name="delivery_year" class="form-control"
+                   value="{{ cycle.delivery_year }}" min="2020" max="2099" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">発行月</label>
+            <select name="delivery_month" class="form-select" required>
+              {% for m in range(1, 13) %}
+              <option value="{{ m }}" {{ 'selected' if m == cycle.delivery_month }}>{{ m }}月</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="alert alert-warning py-2 small mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            年月を変更するとスケジュール日程も再計算されます。
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-check-lg me-1"></i>保存
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

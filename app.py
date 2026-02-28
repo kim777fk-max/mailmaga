@@ -145,22 +145,32 @@ def admin_required(f):
 @app.before_request
 def check_login():
     """
-    1. ACCESS_KEY が設定されている場合、入口クッキーがなければ 404 を返す。
+    1. ACCESS_KEY が設定されている場合:
+       - /{ACCESS_KEY} へのアクセスは入口として扱い、クッキー発行 → /login へリダイレクト
+       - クッキーなしで他のパスへアクセスした場合は 404
     2. 認証が有効な場合、ログイン済みかチェックする。
     """
+    from flask import abort
+
     # ── 入口チェック ──
     if _ACCESS_KEY:
-        if request.endpoint in ('entry', 'static'):
+        # /{ACCESS_KEY} 自体が入口URL（パスにキーが含まれる）
+        if request.path == f'/{_ACCESS_KEY}':
+            flask_session.permanent = True
+            flask_session['entry_ok'] = True
+            return redirect(url_for('login'))
+
+        if request.endpoint == 'static':
+            return
+        if request.path == '/robots.txt':
             return
         if not flask_session.get('entry_ok'):
-            # ログインページ自体も隠す
-            from flask import abort
             abort(404)
 
     # ── ログインチェック ──
     if not _AUTH_ENABLED:
         return
-    if request.endpoint in ('login', 'logout', 'static', 'entry'):
+    if request.endpoint in ('login', 'logout', 'static', 'robots'):
         return
     if not flask_session.get('role'):
         return redirect(url_for('login', next=request.path))
@@ -171,23 +181,6 @@ def inject_role():
     """全テンプレートで is_admin / current_role を使えるようにする。"""
     return {'is_admin': is_admin(), 'current_role': current_role()}
 
-
-@app.route('/enter')
-def entry():
-    """
-    入口URL: /enter?key=ACCESS_KEY
-    正しいキーが渡されればクッキーを発行してログイン画面へ。
-    ACCESS_KEY 未設定の場合はこのルート自体を無効化。
-    """
-    if not _ACCESS_KEY:
-        return redirect(url_for('login'))
-    key = request.args.get('key', '')
-    if key == _ACCESS_KEY:
-        flask_session.permanent = True
-        flask_session['entry_ok'] = True
-        return redirect(url_for('login'))
-    from flask import abort
-    abort(404)
 
 
 @app.route('/login', methods=['GET', 'POST'])

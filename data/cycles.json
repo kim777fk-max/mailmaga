@@ -17,8 +17,8 @@
     },
     "steps": {
       "schedule_mail": {
-        "completed": false,
-        "completed_at": null
+        "completed": true,
+        "completed_at": "2026-02-28T02:41:06.816890"
       },
       "request_mail": {
         "completed": false,

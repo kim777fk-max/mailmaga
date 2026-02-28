@@ -59,6 +59,7 @@
         <div class="step-row {{ 'step-done' if s.get('completed') else ('step-today' if sdate == today else '') }}">
           <div class="d-flex align-items-center gap-3">
             <!-- Toggle button -->
+            {% if is_admin %}
             <button class="btn-toggle {{ 'done' if s.get('completed') else '' }}"
                     onclick="toggleStep('{{ cycle.id }}', '{{ step.key }}', this)"
                     title="{{ '完了済み（クリックで戻す）' if s.get('completed') else '完了にする' }}">
@@ -68,6 +69,16 @@
               <i class="bi bi-circle"></i>
               {% endif %}
             </button>
+            {% else %}
+            <span class="btn-toggle {{ 'done' if s.get('completed') else '' }}"
+                  style="cursor:default;">
+              {% if s.get('completed') %}
+              <i class="bi bi-check-circle-fill"></i>
+              {% else %}
+              <i class="bi bi-circle"></i>
+              {% endif %}
+            </span>
+            {% endif %}
             <!-- Step info -->
             <div class="flex-grow-1">
               <div class="d-flex align-items-center gap-2">
@@ -195,12 +206,14 @@
                    placeholder="/Users/xxx/Downloads/原稿提出フォルダ">
           </div>
           <input type="hidden" name="notes" value="{{ cycle.notes or '' }}">
+          {% if is_admin %}
           <button type="submit" class="btn btn-outline-secondary">更新</button>
           {% if cycle.submissions_folder %}
           <button type="button" class="btn btn-outline-secondary"
                   onclick="refreshSubmissions()">
             <i class="bi bi-arrow-clockwise"></i> 再スキャン
           </button>
+          {% endif %}
           {% endif %}
         </form>
       </div>
@@ -293,10 +306,13 @@
             <i class="bi bi-sticky me-1"></i>メモ・引き継ぎ事項
           </label>
           <textarea class="form-control" name="notes" rows="8"
-                    placeholder="担当者メモ、引き継ぎ事項など自由に記入">{{ cycle.notes or '' }}</textarea>
+                    placeholder="担当者メモ、引き継ぎ事項など自由に記入"
+                    {{ '' if is_admin else 'readonly' }}>{{ cycle.notes or '' }}</textarea>
+          {% if is_admin %}
           <button type="submit" class="btn btn-primary mt-3">
             <i class="bi bi-save me-1"></i>保存
           </button>
+          {% endif %}
         </form>
       </div>
     </div>

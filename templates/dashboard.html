@@ -7,9 +7,11 @@
     <h1 class="h3 fw-bold mb-0">ダッシュボード</h1>
     <small class="text-muted">今日: {{ today }}</small>
   </div>
+  {% if is_admin %}
   <a href="/cycle/new" class="btn btn-primary">
     <i class="bi bi-plus-circle me-1"></i>新規号を作成
   </a>
+  {% endif %}
 </div>
 
 {% if current %}
@@ -112,9 +114,11 @@
 <div class="text-center py-5 text-muted">
   <i class="bi bi-inbox display-3"></i>
   <p class="mt-3 mb-4">まだ号が登録されていません</p>
+  {% if is_admin %}
   <a href="/cycle/new" class="btn btn-primary btn-lg">
     <i class="bi bi-plus-circle me-2"></i>最初の号を作成する
   </a>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}

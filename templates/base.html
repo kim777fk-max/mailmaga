@@ -15,17 +15,24 @@
     <a class="navbar-brand fw-bold" href="/">
       <i class="bi bi-envelope-paper-fill me-2"></i>メルマガいたしん 管理ツール
     </a>
-    <div class="navbar-nav ms-auto flex-row gap-3">
+    <div class="navbar-nav ms-auto flex-row gap-3 align-items-center">
+      {% if is_admin %}
       <a class="nav-link nav-action" href="/cycle/new">
         <i class="bi bi-plus-circle me-1"></i>新規号
       </a>
       <a class="nav-link nav-action" href="/settings">
         <i class="bi bi-gear me-1"></i>設定
       </a>
-      <a class="nav-link nav-action" href="/logout"
+      {% endif %}
+      {% if current_role %}
+      <span class="badge {{ 'bg-warning text-dark' if is_admin else 'bg-secondary' }} ms-1">
+        {{ '管理者' if is_admin else '閲覧' }}
+      </span>
+      <a class="nav-link nav-action ms-1" href="/logout"
          style="opacity:0.7;" title="ログアウト">
         <i class="bi bi-box-arrow-right"></i>
       </a>
+      {% endif %}
     </div>
   </div>
 </nav>

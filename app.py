@@ -97,38 +97,84 @@ STEPS = [
 ]
 
 
-# ─── シンプルパスワード認証 ────────────────────────────────────────────────────
-# 環境変数 APP_PASSWORD が設定されている場合のみ認証を有効にする。
-# ローカル開発時は未設定のままにしておけばスキップされる。
-_APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
+# ─── ロールベース認証 ──────────────────────────────────────────────────────────
+# 環境変数:
+#   ADMIN_PASSWORD … 管理者パスワード（全操作可）
+#   USER_PASSWORD  … 一般パスワード（閲覧のみ）
+#   APP_PASSWORD   … 後方互換：管理者として扱う
+#
+# いずれも未設定（ローカル開発）の場合は認証をスキップし、管理者として扱う。
+
+_ADMIN_PASSWORD = (os.environ.get('ADMIN_PASSWORD')
+                   or os.environ.get('APP_PASSWORD', ''))
+_USER_PASSWORD  = os.environ.get('USER_PASSWORD', '')
+_AUTH_ENABLED   = bool(_ADMIN_PASSWORD)
 
 from flask import session as flask_session
 from datetime import timedelta
+from functools import wraps
 
 app.permanent_session_lifetime = timedelta(hours=12)
 
+
+def current_role():
+    """現在のセッションのロールを返す。認証無効時は 'admin'。"""
+    if not _AUTH_ENABLED:
+        return 'admin'
+    return flask_session.get('role', None)
+
+def is_admin():
+    return current_role() == 'admin'
+
+def admin_required(f):
+    """管理者専用ルートに付けるデコレータ。"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_admin():
+            if not _AUTH_ENABLED:
+                return f(*args, **kwargs)
+            flash('この操作は管理者のみ実行できます', 'error')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
+
 @app.before_request
 def check_login():
-    """パスワード未設定（ローカル）はスルー。設定済みなら /login 以外は認証必須。"""
-    if not _APP_PASSWORD:
+    """認証が有効な場合、ログイン済みかチェックする。"""
+    if not _AUTH_ENABLED:
         return
     if request.endpoint in ('login', 'logout', 'static'):
         return
-    if not flask_session.get('logged_in'):
+    if not flask_session.get('role'):
         return redirect(url_for('login', next=request.path))
+
+
+@app.context_processor
+def inject_role():
+    """全テンプレートで is_admin / current_role を使えるようにする。"""
+    return {'is_admin': is_admin(), 'current_role': current_role()}
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if not _APP_PASSWORD:
+    if not _AUTH_ENABLED:
         return redirect(url_for('dashboard'))
     error = None
     if request.method == 'POST':
-        if request.form.get('password') == _APP_PASSWORD:
+        pw = request.form.get('password', '')
+        if pw == _ADMIN_PASSWORD:
             flask_session.permanent = True
-            flask_session['logged_in'] = True
+            flask_session['role'] = 'admin'
             return redirect(request.args.get('next') or url_for('dashboard'))
-        error = 'パスワードが違います'
+        elif _USER_PASSWORD and pw == _USER_PASSWORD:
+            flask_session.permanent = True
+            flask_session['role'] = 'user'
+            return redirect(request.args.get('next') or url_for('dashboard'))
+        else:
+            error = 'パスワードが違います'
     return render_template('login.html', error=error)
+
 
 @app.route('/logout')
 def logout():
@@ -438,6 +484,7 @@ def dashboard():
 
 
 @app.route('/cycle/new', methods=['GET', 'POST'])
+@admin_required
 def cycle_new():
     if request.method == 'POST':
         year  = int(request.form['delivery_year'])
@@ -504,6 +551,7 @@ def cycle_detail(cycle_id):
 
 
 @app.route('/cycle/<cycle_id>/step/<step_key>/toggle', methods=['POST'])
+@admin_required
 def toggle_step(cycle_id, step_key):
     cycles = load_cycles()
     cycle  = next((c for c in cycles if c['id'] == cycle_id), None)
@@ -518,6 +566,7 @@ def toggle_step(cycle_id, step_key):
 
 
 @app.route('/cycle/<cycle_id>/update', methods=['POST'])
+@admin_required
 def cycle_update(cycle_id):
     cycles = load_cycles()
     cycle  = next((c for c in cycles if c['id'] == cycle_id), None)
@@ -562,6 +611,7 @@ def email_compose(cycle_id, step_key):
 
 
 @app.route('/settings', methods=['GET', 'POST'])
+@admin_required
 def settings():
     config    = load_config()
     templates = load_templates()
@@ -578,6 +628,7 @@ def settings():
 
 
 @app.route('/settings/template/<step_key>', methods=['POST'])
+@admin_required
 def update_template(step_key):
     templates = load_templates()
     if step_key not in templates:
@@ -722,6 +773,7 @@ def xserver_fetch_all(share_url, password=''):
 
 
 @app.route('/api/cycle/<cycle_id>/xserver-save-url', methods=['POST'])
+@admin_required
 def xserver_save_url(cycle_id):
     """XServer 共有URLをサイクルデータに保存する"""
     cycles = load_cycles()

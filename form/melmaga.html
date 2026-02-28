@@ -7,12 +7,13 @@
   <style>
     /* ===== パスワードゲート ===== */
     #pw-gate {
-      position: fixed; inset: 0;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: #f0ebf8;
       display: flex; align-items: center; justify-content: center;
       z-index: 9999;
+      visibility: visible;
     }
-    #pw-gate.hidden { display: none; }
+    #pw-gate[hidden] { display: none !important; }
     .pw-card {
       background: #fff;
       border-radius: 12px;
@@ -350,7 +351,7 @@
 <body>
 
 <!-- ===== パスワードゲート ===== -->
-<div id="pw-gate">
+<div id="pw-gate" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#f0ebf8;display:flex;align-items:center;justify-content:center;z-index:9999;">
   <div class="pw-card">
     <h2>🔒 メルマガ原稿フォーム</h2>
     <p>板診会 広報部よりご案内したパスワードを入力してください</p>
@@ -490,32 +491,45 @@ async function sha256(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function unlockForm() {
+  const gate = document.getElementById('pw-gate');
+  gate.setAttribute('hidden', '');
+  sessionStorage.setItem('melmaga_auth', PW_HASH);
+}
+
 async function checkPw() {
   const val = document.getElementById('pw-input').value;
-  const h   = await sha256(val);
-  if (h === PW_HASH) {
-    sessionStorage.setItem('melmaga_auth', PW_HASH);
-    document.getElementById('pw-gate').classList.add('hidden');
-    document.getElementById('pw-error').style.display = 'none';
-  } else {
-    document.getElementById('pw-error').style.display = 'block';
-    document.getElementById('pw-input').value = '';
-    document.getElementById('pw-input').focus();
+  if (!val) return;
+  try {
+    const h = await sha256(val);
+    if (h === PW_HASH) {
+      document.getElementById('pw-error').style.display = 'none';
+      unlockForm();
+    } else {
+      document.getElementById('pw-error').style.display = 'block';
+      document.getElementById('pw-input').value = '';
+      document.getElementById('pw-input').focus();
+    }
+  } catch (e) {
+    // crypto.subtle が使えない環境（file://など）は平文比較にフォールバック
+    if (val === 'itashin2026') {
+      unlockForm();
+    } else {
+      document.getElementById('pw-error').style.display = 'block';
+      document.getElementById('pw-input').value = '';
+      document.getElementById('pw-input').focus();
+    }
   }
 }
 
-// ページ読み込み時: 認証済みならゲートを非表示
-(async () => {
+// ページ読み込み時: 認証済みならゲートをスキップ
+document.addEventListener('DOMContentLoaded', () => {
   if (sessionStorage.getItem('melmaga_auth') === PW_HASH) {
-    document.getElementById('pw-gate').classList.add('hidden');
+    unlockForm();
   } else {
-    // ゲートが表示されるまで本文を隠す（ちらつき防止）
-    document.documentElement.style.overflow = 'hidden';
-    window.addEventListener('DOMContentLoaded', () => {
-      document.documentElement.style.overflow = '';
-    });
+    document.getElementById('pw-input').focus();
   }
-})();
+});
 
 /* ===== 改行保護マーカー（ZWS） =====
    ゼロ幅スペース（U+200B）を不可視の「意図的改行マーカー」として使う。

@@ -344,41 +344,48 @@ async function xsCheck() {
   if (!url) { alert('URLを入力してください'); return; }
 
   statusEl.style.display = 'block';
-  statusEl.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>XServerに接続中...';
+  statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>XServerからZIPを取得中...（数秒かかります）';
   listEl.style.display = 'none';
 
   // URLを保存
-  await fetch('/api/cycle/{{ cycle.id }}/xserver-save-url', {
+  fetch('/api/cycle/{{ cycle.id }}/xserver-save-url', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ url }),
   });
 
-  const res  = await fetch('/api/cycle/{{ cycle.id }}/xserver-list', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ url, password: pw }),
-  });
-  const data = await res.json();
-
-  if (data.error) {
-    statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>${data.error}</div>`;
+  let result;
+  try {
+    const res = await fetch('/api/cycle/{{ cycle.id }}/xserver-list', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ url, password: pw }),
+    });
+    result = await res.json();
+  } catch (e) {
+    statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">通信エラー: ${e}</div>`;
     return;
   }
 
-  _xsHost  = data.host;
-  _xsToken = data.token;
+  if (result.error) {
+    statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>${result.error}</div>`;
+    return;
+  }
 
-  const count = data.files.length;
-  statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle me-1"></i>接続成功 — <strong>${count}件</strong>の原稿ファイルを確認</div>`;
+  const articles = result.articles || [];
+  const count = articles.length;
+  statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle me-1"></i>取得成功 — <strong>${count}件</strong>の原稿ファイルを確認</div>`;
 
   if (count === 0) { return; }
 
   // ファイル一覧表示
   let html = '<ul class="list-group list-group-flush">';
-  data.files.forEach(f => {
+  articles.forEach(f => {
     html += `<li class="list-group-item py-1 px-2 d-flex justify-content-between align-items-center">
-      <span><i class="bi bi-file-earmark-text text-primary me-2"></i>${f.name}</span>
+      <span><i class="bi bi-file-earmark-text text-primary me-2"></i>
+        <strong>${f.dept}</strong>
+        <span class="text-muted ms-2" style="font-size:11px;">${f.filename}</span>
+      </span>
       <span class="text-muted small">${f.size_kb} KB</span>
     </li>`;
   });

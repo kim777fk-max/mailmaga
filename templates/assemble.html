@@ -298,55 +298,40 @@ async function fetchFromXServer() {
     body: JSON.stringify({ url }),
   });
 
-  // ファイル一覧取得
-  let listData;
+  statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>XServerからZIPをダウンロード中...（数秒かかります）';
+
+  // ZIP一括取得 → サーバー側でパース済みの記事リストが返る
+  let result;
   try {
     const res = await fetch('/api/cycle/{{ cycle.id }}/xserver-list', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ url, password: pw }),
     });
-    listData = await res.json();
+    result = await res.json();
   } catch (e) {
     statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">通信エラー: ${e}</div>`;
     return;
   }
 
-  if (listData.error) {
-    statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>${listData.error}</div>`;
+  if (result.error) {
+    statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>${result.error}</div>`;
     return;
   }
 
-  const files = listData.files;
-  if (files.length === 0) {
-    statusEl.innerHTML = '<div class="alert alert-warning py-2 mb-0">原稿ファイル（.txt）が見つかりませんでした</div>';
+  const articles = result.articles || [];
+  if (articles.length === 0) {
+    statusEl.innerHTML = '<div class="alert alert-warning py-2 mb-0">原稿ファイル（.txt）が見つかりませんでした。「原稿提出」フォルダに .txt ファイルが保存されているか確認してください。</div>';
     return;
   }
 
-  statusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${files.length}件のファイルを取得中...`;
-
-  // 各ファイルをダウンロードして一覧に追加
-  let added = 0, failed = 0;
-  for (const f of files) {
-    try {
-      const res = await fetch('/api/cycle/{{ cycle.id }}/xserver-fetch', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ host: listData.host, token: listData.token,
-                               password: pw, rel_path: f.rel_path }),
-      });
-      const d = await res.json();
-      if (d.error) { failed++; continue; }
-      addArticleItemToList(d.filename, d.dept, d.body, d.preview);
-      added++;
-    } catch (e) { failed++; }
-  }
-
+  articles.forEach(a => addArticleItemToList(a.filename, a.dept, a.body, a.preview));
   updateArticleCount();
   const noMsg = document.getElementById('no-articles-msg');
-  if (noMsg && added > 0) noMsg.style.display = 'none';
+  if (noMsg) noMsg.style.display = 'none';
 
   statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0">
     <i class="bi bi-check-circle me-1"></i>
-    <strong>${added}件</strong>の原稿を読み込みました${failed ? ' （' + failed + '件エラー）' : ''}
+    <strong>${articles.length}件</strong>の原稿を読み込みました
   </div>`;
 }
 

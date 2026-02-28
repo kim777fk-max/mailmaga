@@ -5,7 +5,7 @@ import calendar
 
 try:
     import requests
-    from xml.etree import ElementTree as ET
+    import zipfile, io
     _REQUESTS_OK = True
 except ImportError:
     _REQUESTS_OK = False
@@ -488,7 +488,7 @@ def update_template(step_key):
     return redirect(url_for('settings') + f'#tmpl-{step_key}')
 
 
-# ─── XServer (Nextcloud) WebDAV 連携 ─────────────────────────────────────────
+# ─── XServer (Nextcloud) ZIP 一括取得連携 ────────────────────────────────────
 
 def _nc_parse_share_url(url):
     """共有URLからトークンとホストを取り出す"""
@@ -500,123 +500,120 @@ def _nc_parse_share_url(url):
     host = f'{parsed.scheme}://{parsed.netloc}'
     return host, m.group(1)
 
-def _nc_propfind(webdav_url, token, password, depth='infinity'):
-    """WebDAV PROPFIND リクエスト"""
-    body = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        '<d:propfind xmlns:d="DAV:">'
-        '<d:prop>'
-        '<d:displayname/><d:getcontentlength/>'
-        '<d:getcontenttype/><d:resourcetype/>'
-        '</d:prop>'
-        '</d:propfind>'
-    )
-    return requests.request(
-        'PROPFIND', webdav_url,
-        auth=(token, password),
-        headers={'Depth': depth, 'Content-Type': 'application/xml; charset=utf-8'},
-        data=body.encode('utf-8'),
-        timeout=15,
-        verify=True,
-    )
+def _nc_decode_text(raw_bytes):
+    """バイト列をUTF-8 / Shift-JIS でデコードする"""
+    for enc in ('utf-8', 'utf-8-sig', 'shift-jis', 'cp932'):
+        try:
+            return raw_bytes.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return raw_bytes.decode('utf-8', errors='replace')
 
-def xserver_list_files(share_url, password=''):
+def xserver_fetch_all(share_url, password=''):
     """
-    Nextcloud 公開共有リンクから .txt ファイル一覧を取得する。
-    戻り値: (files_list, error_str)
+    Nextcloud 公開共有リンクにセッション認証してZIPで一括取得し、
+    .txt 原稿ファイルをパースして返す。
+
+    戻り値: (articles_list, error_str)
+    articles_list = [{filename, dept, body, preview, size_kb, path_in_zip}, ...]
     """
     if not _REQUESTS_OK:
-        return None, 'requests ライブラリが未インストールです。pip install requests を実行してください。'
+        return None, 'requests ライブラリが未インストールです（pip install requests）'
 
     host, token = _nc_parse_share_url(share_url)
     if not token:
         return None, 'URLの形式が正しくありません（/s/TOKEN の形式が必要です）'
 
-    webdav_base = f'{host}/public.php/webdav'
+    session = requests.Session()
+    session.headers.update({'User-Agent': 'Mozilla/5.0 (compatible; melmaga-kanri)'})
 
     try:
-        resp = _nc_propfind(webdav_base + '/', token, password)
-        if resp.status_code == 401:
-            return None, 'パスワードが違います'
-        if resp.status_code not in (200, 207):
-            # スラッシュなしでリトライ
-            resp = _nc_propfind(webdav_base, token, password)
-            if resp.status_code == 401:
+        # ── STEP 1: 共有ページを取得して CSRF トークンを得る ──
+        r1 = session.get(f'{host}/index.php/s/{token}', timeout=15)
+        if r1.status_code != 200:
+            return None, f'共有ページにアクセスできません（HTTP {r1.status_code}）'
+
+        m = re.search(r'name="requesttoken"\s+value="([^"]+)"', r1.text)
+        if not m:
+            # パスワード不要の共有ページ（認証フォームなし）
+            rtoken = None
+        else:
+            rtoken = m.group(1)
+
+        # ── STEP 2: パスワード認証 ──
+        if rtoken:
+            r2 = session.post(
+                f'{host}/index.php/s/{token}/authenticate/showShare',
+                data={'requesttoken': rtoken, 'password': password},
+                headers={'Referer': f'{host}/index.php/s/{token}'},
+                allow_redirects=True,
+                timeout=15,
+            )
+            # 認証後のページに再びパスワードフォームが存在 → パスワード誤り
+            if re.search(r'name="requesttoken"\s+value="', r2.text) and \
+               'id="password"' in r2.text:
                 return None, 'パスワードが違います'
-            if resp.status_code not in (200, 207):
-                return None, f'サーバーエラー（HTTP {resp.status_code}）'
 
-        ns  = {'d': 'DAV:'}
-        root = ET.fromstring(resp.text)
-        files = []
+        # ── STEP 3: ZIP一括ダウンロード ──
+        r3 = session.get(
+            f'{host}/index.php/s/{token}/download',
+            timeout=60,
+            stream=True,
+        )
+        if r3.status_code != 200:
+            return None, f'ZIPのダウンロードに失敗しました（HTTP {r3.status_code}）'
 
-        for response in root.findall('.//d:response', ns):
-            href_el = response.find('d:href', ns)
-            if href_el is None:
+        content_type = r3.headers.get('Content-Type', '')
+        if 'zip' not in content_type and 'octet' not in content_type:
+            # テキスト系ならページが返ってきている（認証失敗の可能性）
+            return None, 'パスワードが違うか、ダウンロードに失敗しました'
+
+        zip_bytes = r3.content
+
+        # ── STEP 4: ZIPを展開して .txt を読む ──
+        articles = []
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+        except zipfile.BadZipFile:
+            return None, 'ZIPファイルの展開に失敗しました'
+
+        dept_order = {d: i for i, d in enumerate(DEPARTMENTS)}
+
+        for entry in zf.namelist():
+            # ディレクトリはスキップ
+            if entry.endswith('/'):
                 continue
-            href = href_el.text
-
-            # ディレクトリは除外
-            rt_el = response.find('.//d:resourcetype/d:collection', ns)
-            if rt_el is not None:
+            # .txt 以外はスキップ
+            if not entry.lower().endswith('.txt'):
                 continue
 
-            # ファイル名をデコード
-            raw_name = href.split('/')[-1]
-            filename = urllib.parse.unquote(raw_name)
-            if not filename.lower().endswith('.txt'):
+            filename = urllib.parse.unquote(entry.split('/')[-1])
+            info = zf.getinfo(entry)
+            if info.file_size == 0:
                 continue
 
-            size_el = response.find('.//d:getcontentlength', ns)
-            size = int(size_el.text) if size_el is not None and size_el.text and size_el.text.isdigit() else 0
-            if size == 0:
-                continue
+            raw = zf.read(entry)
+            content = _nc_decode_text(raw)
+            dept, body = parse_article(content)
 
-            # PROPFIND href から WebDAV 相対パスを構築
-            # href 例: /public.php/webdav/%E5%8E%9F%E7%A8%BF%E6%8F%90%E5%87%BA/xxx.txt
-            # → /public.php/webdav/ より後ろの部分がファイルパス
-            webdav_prefix = '/public.php/webdav'
-            idx = href.find(webdav_prefix)
-            rel_path = href[idx + len(webdav_prefix):] if idx >= 0 else '/' + raw_name
-
-            files.append({
-                'name':     filename,
-                'rel_path': rel_path,
-                'size_kb':  round(size / 1024, 1),
+            articles.append({
+                'filename':    filename,
+                'path_in_zip': entry,
+                'dept':        dept or filename,
+                'body':        body,
+                'preview':     body[:80].replace('\n', ' '),
+                'size_kb':     round(info.file_size / 1024, 1),
             })
 
-        return files, None
+        articles.sort(key=lambda a: dept_order.get(a['dept'], 999))
+        return articles, None
 
     except requests.exceptions.ConnectionError:
         return None, 'サーバーに接続できませんでした。URLを確認してください'
     except requests.exceptions.Timeout:
-        return None, 'タイムアウトしました。URLを確認してください'
-    except ET.ParseError as e:
-        return None, f'XMLパースエラー: {e}'
+        return None, 'タイムアウトしました'
     except Exception as e:
         return None, f'エラー: {e}'
-
-
-def xserver_download_file(host, token, password, rel_path):
-    """Nextcloud 共有からファイルをダウンロードしてテキストを返す"""
-    url = f'{host}/public.php/webdav{rel_path}'
-    try:
-        resp = requests.get(url, auth=(token, password), timeout=15, verify=True)
-        if resp.status_code != 200:
-            return None, f'HTTP {resp.status_code}'
-        raw = resp.content
-        for enc in ('utf-8', 'utf-8-sig', 'shift-jis', 'cp932'):
-            try:
-                return raw.decode(enc), None
-            except UnicodeDecodeError:
-                continue
-        return raw.decode('utf-8', errors='replace'), None
-    except requests.exceptions.ConnectionError:
-        return None, '接続エラー'
-    except requests.exceptions.Timeout:
-        return None, 'タイムアウト'
-    except Exception as e:
-        return None, str(e)
 
 
 @app.route('/api/cycle/<cycle_id>/xserver-save-url', methods=['POST'])
@@ -634,49 +631,18 @@ def xserver_save_url(cycle_id):
 
 @app.route('/api/cycle/<cycle_id>/xserver-list', methods=['POST'])
 def api_xserver_list(cycle_id):
-    """XServer から .txt ファイル一覧を取得"""
+    """XServer からZIPで一括取得してパース済み記事リストを返す"""
     data     = request.get_json()
     url      = data.get('url', '').strip()
     password = data.get('password', '')
     if not url:
         return jsonify({'error': 'URLを入力してください'}), 400
 
-    host, token = _nc_parse_share_url(url)
-    if not token:
-        return jsonify({'error': 'URLの形式が正しくありません'}), 400
-
-    files, err = xserver_list_files(url, password)
+    articles, err = xserver_fetch_all(url, password)
     if err:
         return jsonify({'error': err}), 400
 
-    return jsonify({'files': files, 'host': host, 'token': token})
-
-
-@app.route('/api/cycle/<cycle_id>/xserver-fetch', methods=['POST'])
-def api_xserver_fetch(cycle_id):
-    """XServer から指定ファイルをダウンロードしてパース結果を返す"""
-    data     = request.get_json()
-    host     = data.get('host', '')
-    token    = data.get('token', '')
-    password = data.get('password', '')
-    rel_path = data.get('rel_path', '')
-
-    if not all([host, token, rel_path]):
-        return jsonify({'error': 'パラメータ不足'}), 400
-
-    content, err = xserver_download_file(host, token, password, rel_path)
-    if err:
-        return jsonify({'error': err}), 400
-
-    dept, body = parse_article(content)
-    filename   = urllib.parse.unquote(rel_path.split('/')[-1])
-
-    return jsonify({
-        'filename': filename,
-        'dept':     dept,
-        'body':     body,
-        'preview':  body[:80].replace('\n', ' '),
-    })
+    return jsonify({'articles': articles, 'count': len(articles)})
 
 
 @app.route('/api/cycle/<cycle_id>/submissions')

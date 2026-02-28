@@ -183,23 +183,49 @@ def inject_role():
 
 
 
+_LOGIN_MAX_ATTEMPTS = 3
+_LOGIN_LOCKOUT_SECONDS = 15 * 60  # 15分
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if not _AUTH_ENABLED:
         return redirect(url_for('dashboard'))
+
+    # ── ロックアウトチェック ──
+    locked_until = flask_session.get('login_locked_until', 0)
+    now = datetime.now().timestamp()
+    if locked_until and now < locked_until:
+        remaining = int((locked_until - now) / 60) + 1
+        error = f'ログイン試行回数が上限に達しました。{remaining}分後に再試行してください。'
+        return render_template('login.html', error=error, locked=True)
+
     error = None
     if request.method == 'POST':
         pw = request.form.get('password', '')
         if pw == _ADMIN_PASSWORD:
+            flask_session.pop('login_attempts', None)
+            flask_session.pop('login_locked_until', None)
             flask_session.permanent = True
             flask_session['role'] = 'admin'
             return redirect(request.args.get('next') or url_for('dashboard'))
         elif _USER_PASSWORD and pw == _USER_PASSWORD:
+            flask_session.pop('login_attempts', None)
+            flask_session.pop('login_locked_until', None)
             flask_session.permanent = True
             flask_session['role'] = 'user'
             return redirect(request.args.get('next') or url_for('dashboard'))
         else:
-            error = 'パスワードが違います'
+            attempts = flask_session.get('login_attempts', 0) + 1
+            flask_session['login_attempts'] = attempts
+            remaining_tries = _LOGIN_MAX_ATTEMPTS - attempts
+            if remaining_tries <= 0:
+                flask_session['login_locked_until'] = now + _LOGIN_LOCKOUT_SECONDS
+                flask_session.pop('login_attempts', None)
+                error = 'ログイン試行回数が上限に達しました。15分後に再試行してください。'
+                return render_template('login.html', error=error, locked=True)
+            else:
+                error = f'パスワードが違います（残り{remaining_tries}回）'
+
     return render_template('login.html', error=error)
 
 

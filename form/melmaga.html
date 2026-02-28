@@ -413,6 +413,13 @@
 
 const $ = id => document.getElementById(id);
 
+/* ===== 改行保護マーカー（ZWS） =====
+   ゼロ幅スペース（U+200B）を不可視の「意図的改行マーカー」として使う。
+   表示・出力には影響しない。enforceWrap がこれを段落区切りとして認識する。
+   ※ 参照される関数より先に定義する必要がある。
+================================================ */
+const ZWS = '\u200B';
+
 /* ===== 変換ユーティリティ ===== */
 
 const toHalfNum = str =>
@@ -469,11 +476,13 @@ function getDepartment() {
   return sel;
 }
 
-/* ===== 現在日時文字列 ===== */
+/* ===== 現在日時文字列 YYYYMMDD_HHMMSS ===== */
 function nowString() {
-  const d = new Date();
+  const d   = new Date();
   const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+  const dt  = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+  const tm  = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return `${dt}_${tm}`;
 }
 
 /* ===== 部署選択の「その他」制御 ===== */
@@ -589,12 +598,6 @@ function updateStats() {
   if ($('preview-box').style.display !== 'none') updatePreview();
   $('preview-btn').style.display = text.trim() ? 'inline' : 'none';
 }
-
-/* ===== 改行保護マーカー =====
-   ZWS（ゼロ幅スペース）を不可視の「意図的改行マーカー」として使う。
-   表示・出力には影響しない。enforceWrap がこれを段落区切りとして認識する。
-================================================ */
-const ZWS = '\u200B';
 
 /* ===== 1行目：フォーカス時に全角スペースを自動挿入 ===== */
 contentEl.addEventListener('focus', () => {

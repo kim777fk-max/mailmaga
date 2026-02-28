@@ -1,0 +1,60 @@
+[
+  {
+    "id": "2026-03",
+    "vol": 30,
+    "delivery_year": 2026,
+    "delivery_month": 3,
+    "schedule": {
+      "schedule_mail": "2026/02/25",
+      "request_mail": "2026/02/26",
+      "deadline_reminder": "2026/03/06",
+      "deadline": "2026/03/07",
+      "review_request": "2026/03/08",
+      "review_deadline": "2026/03/10",
+      "test_distribution": "2026/03/11",
+      "test_deadline": "2026/03/13",
+      "publish": "2026/03/15"
+    },
+    "steps": {
+      "schedule_mail": {
+        "completed": false,
+        "completed_at": null
+      },
+      "request_mail": {
+        "completed": false,
+        "completed_at": null
+      },
+      "submissions": {
+        "completed": false,
+        "completed_at": null
+      },
+      "deadline_reminder": {
+        "completed": false,
+        "completed_at": null
+      },
+      "deadline": {
+        "completed": false,
+        "completed_at": null
+      },
+      "content_check": {
+        "completed": false,
+        "completed_at": null
+      },
+      "format_transfer": {
+        "completed": false,
+        "completed_at": null
+      },
+      "final_check": {
+        "completed": false,
+        "completed_at": null
+      },
+      "publish": {
+        "completed": false,
+        "completed_at": null
+      }
+    },
+    "submissions_folder": "",
+    "notes": "",
+    "created_at": "2026-02-28T02:38:58.729990"
+  }
+]

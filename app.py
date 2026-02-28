@@ -3,6 +3,13 @@ import json, os, re, urllib.parse
 from datetime import datetime, date
 import calendar
 
+try:
+    import requests
+    from xml.etree import ElementTree as ET
+    _REQUESTS_OK = True
+except ImportError:
+    _REQUESTS_OK = False
+
 app = Flask(__name__)
 app.secret_key = 'melmaga-kanri-itashin-2026'
 
@@ -479,6 +486,197 @@ def update_template(step_key):
     save_json(TEMPLATES_FILE, templates)
     flash('テンプレートを保存しました', 'success')
     return redirect(url_for('settings') + f'#tmpl-{step_key}')
+
+
+# ─── XServer (Nextcloud) WebDAV 連携 ─────────────────────────────────────────
+
+def _nc_parse_share_url(url):
+    """共有URLからトークンとホストを取り出す"""
+    m = re.search(r'/s/([^/?#\s]+)', url)
+    if not m:
+        return None, None
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    host = f'{parsed.scheme}://{parsed.netloc}'
+    return host, m.group(1)
+
+def _nc_propfind(webdav_url, token, password, depth='infinity'):
+    """WebDAV PROPFIND リクエスト"""
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<d:propfind xmlns:d="DAV:">'
+        '<d:prop>'
+        '<d:displayname/><d:getcontentlength/>'
+        '<d:getcontenttype/><d:resourcetype/>'
+        '</d:prop>'
+        '</d:propfind>'
+    )
+    return requests.request(
+        'PROPFIND', webdav_url,
+        auth=(token, password),
+        headers={'Depth': depth, 'Content-Type': 'application/xml; charset=utf-8'},
+        data=body.encode('utf-8'),
+        timeout=15,
+        verify=True,
+    )
+
+def xserver_list_files(share_url, password=''):
+    """
+    Nextcloud 公開共有リンクから .txt ファイル一覧を取得する。
+    戻り値: (files_list, error_str)
+    """
+    if not _REQUESTS_OK:
+        return None, 'requests ライブラリが未インストールです。pip install requests を実行してください。'
+
+    host, token = _nc_parse_share_url(share_url)
+    if not token:
+        return None, 'URLの形式が正しくありません（/s/TOKEN の形式が必要です）'
+
+    webdav_base = f'{host}/public.php/webdav'
+
+    try:
+        resp = _nc_propfind(webdav_base + '/', token, password)
+        if resp.status_code == 401:
+            return None, 'パスワードが違います'
+        if resp.status_code not in (200, 207):
+            # スラッシュなしでリトライ
+            resp = _nc_propfind(webdav_base, token, password)
+            if resp.status_code == 401:
+                return None, 'パスワードが違います'
+            if resp.status_code not in (200, 207):
+                return None, f'サーバーエラー（HTTP {resp.status_code}）'
+
+        ns  = {'d': 'DAV:'}
+        root = ET.fromstring(resp.text)
+        files = []
+
+        for response in root.findall('.//d:response', ns):
+            href_el = response.find('d:href', ns)
+            if href_el is None:
+                continue
+            href = href_el.text
+
+            # ディレクトリは除外
+            rt_el = response.find('.//d:resourcetype/d:collection', ns)
+            if rt_el is not None:
+                continue
+
+            # ファイル名をデコード
+            raw_name = href.split('/')[-1]
+            filename = urllib.parse.unquote(raw_name)
+            if not filename.lower().endswith('.txt'):
+                continue
+
+            size_el = response.find('.//d:getcontentlength', ns)
+            size = int(size_el.text) if size_el is not None and size_el.text and size_el.text.isdigit() else 0
+            if size == 0:
+                continue
+
+            # PROPFIND href から WebDAV 相対パスを構築
+            # href 例: /public.php/webdav/%E5%8E%9F%E7%A8%BF%E6%8F%90%E5%87%BA/xxx.txt
+            # → /public.php/webdav/ より後ろの部分がファイルパス
+            webdav_prefix = '/public.php/webdav'
+            idx = href.find(webdav_prefix)
+            rel_path = href[idx + len(webdav_prefix):] if idx >= 0 else '/' + raw_name
+
+            files.append({
+                'name':     filename,
+                'rel_path': rel_path,
+                'size_kb':  round(size / 1024, 1),
+            })
+
+        return files, None
+
+    except requests.exceptions.ConnectionError:
+        return None, 'サーバーに接続できませんでした。URLを確認してください'
+    except requests.exceptions.Timeout:
+        return None, 'タイムアウトしました。URLを確認してください'
+    except ET.ParseError as e:
+        return None, f'XMLパースエラー: {e}'
+    except Exception as e:
+        return None, f'エラー: {e}'
+
+
+def xserver_download_file(host, token, password, rel_path):
+    """Nextcloud 共有からファイルをダウンロードしてテキストを返す"""
+    url = f'{host}/public.php/webdav{rel_path}'
+    try:
+        resp = requests.get(url, auth=(token, password), timeout=15, verify=True)
+        if resp.status_code != 200:
+            return None, f'HTTP {resp.status_code}'
+        raw = resp.content
+        for enc in ('utf-8', 'utf-8-sig', 'shift-jis', 'cp932'):
+            try:
+                return raw.decode(enc), None
+            except UnicodeDecodeError:
+                continue
+        return raw.decode('utf-8', errors='replace'), None
+    except requests.exceptions.ConnectionError:
+        return None, '接続エラー'
+    except requests.exceptions.Timeout:
+        return None, 'タイムアウト'
+    except Exception as e:
+        return None, str(e)
+
+
+@app.route('/api/cycle/<cycle_id>/xserver-save-url', methods=['POST'])
+def xserver_save_url(cycle_id):
+    """XServer 共有URLをサイクルデータに保存する"""
+    cycles = load_cycles()
+    cycle  = next((c for c in cycles if c['id'] == cycle_id), None)
+    if not cycle:
+        return jsonify({'error': 'not found'}), 404
+    data = request.get_json()
+    cycle['xserver_url'] = data.get('url', '').strip()
+    save_json(CYCLES_FILE, cycles)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/cycle/<cycle_id>/xserver-list', methods=['POST'])
+def api_xserver_list(cycle_id):
+    """XServer から .txt ファイル一覧を取得"""
+    data     = request.get_json()
+    url      = data.get('url', '').strip()
+    password = data.get('password', '')
+    if not url:
+        return jsonify({'error': 'URLを入力してください'}), 400
+
+    host, token = _nc_parse_share_url(url)
+    if not token:
+        return jsonify({'error': 'URLの形式が正しくありません'}), 400
+
+    files, err = xserver_list_files(url, password)
+    if err:
+        return jsonify({'error': err}), 400
+
+    return jsonify({'files': files, 'host': host, 'token': token})
+
+
+@app.route('/api/cycle/<cycle_id>/xserver-fetch', methods=['POST'])
+def api_xserver_fetch(cycle_id):
+    """XServer から指定ファイルをダウンロードしてパース結果を返す"""
+    data     = request.get_json()
+    host     = data.get('host', '')
+    token    = data.get('token', '')
+    password = data.get('password', '')
+    rel_path = data.get('rel_path', '')
+
+    if not all([host, token, rel_path]):
+        return jsonify({'error': 'パラメータ不足'}), 400
+
+    content, err = xserver_download_file(host, token, password, rel_path)
+    if err:
+        return jsonify({'error': err}), 400
+
+    dept, body = parse_article(content)
+    filename   = urllib.parse.unquote(rel_path.split('/')[-1])
+
+    return jsonify({
+        'filename': filename,
+        'dept':     dept,
+        'body':     body,
+        'preview':  body[:80].replace('\n', ' '),
+    })
 
 
 @app.route('/api/cycle/<cycle_id>/submissions')

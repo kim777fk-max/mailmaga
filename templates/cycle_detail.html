@@ -142,21 +142,60 @@
 
   <!-- ── Tab 3: 原稿管理 ───────────────────────── -->
   <div class="tab-pane fade" id="tab-articles">
-    <!-- フォルダ設定 -->
+
+    <!-- XServer 直接接続 -->
+    <div class="card mb-3 border-primary">
+      <div class="card-header bg-primary text-white">
+        <h6 class="mb-0 fw-bold">
+          <i class="bi bi-cloud-download me-2"></i>XServer から直接確認する
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-7">
+            <label class="form-label fw-semibold small mb-1">共有URL</label>
+            <input type="url" class="form-control" id="xs-url"
+                   value="{{ cycle.xserver_url or '' }}"
+                   placeholder="https://drive.rmc-itabashi.jp/index.php/s/XXXXXXXX">
+            <div class="form-text">XServerの共有リンクURLを入力してください</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1">パスワード</label>
+            <input type="password" class="form-control" id="xs-pw"
+                   placeholder="共有リンクのパスワード">
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-primary w-100" onclick="xsCheck()">
+              <i class="bi bi-search me-1"></i>確認
+            </button>
+          </div>
+        </div>
+        <div id="xs-status" class="mt-2" style="display:none;"></div>
+
+        <!-- XServer ファイル一覧 -->
+        <div id="xs-file-list" class="mt-3" style="display:none;">
+          <div class="fw-semibold small mb-2">
+            <i class="bi bi-file-earmark-text me-1"></i>取得された原稿ファイル
+          </div>
+          <div id="xs-files-inner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ローカルフォルダ設定（補助） -->
     <div class="card mb-4">
+      <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-folder2-open me-2"></i>ローカルフォルダ（手動ダウンロード済みの場合）</h6>
+      </div>
       <div class="card-body">
         <form method="POST" action="/cycle/{{ cycle.id }}/update" class="d-flex gap-2 align-items-end">
           <div class="flex-grow-1">
-            <label class="form-label fw-semibold mb-1">
-              <i class="bi bi-folder2-open me-1"></i>原稿フォルダ（ローカルパス）
-            </label>
             <input type="text" class="form-control" name="submissions_folder"
                    value="{{ cycle.submissions_folder or '' }}"
                    placeholder="/Users/xxx/Downloads/原稿提出フォルダ">
-            <div class="form-text">XServerからダウンロードした原稿フォルダのパスを入力してください</div>
           </div>
           <input type="hidden" name="notes" value="{{ cycle.notes or '' }}">
-          <button type="submit" class="btn btn-primary">更新</button>
+          <button type="submit" class="btn btn-outline-secondary">更新</button>
           {% if cycle.submissions_folder %}
           <button type="button" class="btn btn-outline-secondary"
                   onclick="refreshSubmissions()">
@@ -291,6 +330,62 @@ function toggleStep(cycleId, stepKey, btn) {
 
 function refreshSubmissions() {
   location.reload();
+}
+
+// ── XServer 確認 ────────────────────────────────────────
+let _xsHost = '', _xsToken = '';
+
+async function xsCheck() {
+  const url = document.getElementById('xs-url').value.trim();
+  const pw  = document.getElementById('xs-pw').value;
+  const statusEl = document.getElementById('xs-status');
+  const listEl   = document.getElementById('xs-file-list');
+
+  if (!url) { alert('URLを入力してください'); return; }
+
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>XServerに接続中...';
+  listEl.style.display = 'none';
+
+  // URLを保存
+  await fetch('/api/cycle/{{ cycle.id }}/xserver-save-url', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url }),
+  });
+
+  const res  = await fetch('/api/cycle/{{ cycle.id }}/xserver-list', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url, password: pw }),
+  });
+  const data = await res.json();
+
+  if (data.error) {
+    statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>${data.error}</div>`;
+    return;
+  }
+
+  _xsHost  = data.host;
+  _xsToken = data.token;
+
+  const count = data.files.length;
+  statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle me-1"></i>接続成功 — <strong>${count}件</strong>の原稿ファイルを確認</div>`;
+
+  if (count === 0) { return; }
+
+  // ファイル一覧表示
+  let html = '<ul class="list-group list-group-flush">';
+  data.files.forEach(f => {
+    html += `<li class="list-group-item py-1 px-2 d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-file-earmark-text text-primary me-2"></i>${f.name}</span>
+      <span class="text-muted small">${f.size_kb} KB</span>
+    </li>`;
+  });
+  html += '</ul>';
+
+  document.getElementById('xs-files-inner').innerHTML = html;
+  listEl.style.display = 'block';
 }
 </script>
 {% endblock %}

@@ -22,13 +22,50 @@
   </div>
 </div>
 
-{% if not articles %}
-<div class="alert alert-warning">
-  <i class="bi bi-folder-x me-2"></i>
-  原稿ファイルが見つかりません。<br>
-  <a href="/cycle/{{ cycle.id }}#tab-articles">原稿管理タブ</a>でフォルダを設定してから、XServerからダウンロードした .txt ファイルを配置してください。
+<!-- XServer 直接読み込み -->
+<div class="card mb-3 border-primary">
+  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold">
+      <i class="bi bi-cloud-download me-2"></i>XServerから直接読み込む
+    </h6>
+    <button class="btn btn-sm btn-light" type="button"
+            data-bs-toggle="collapse" data-bs-target="#xs-collapse">
+      開く／閉じる
+    </button>
+  </div>
+  <div class="collapse show" id="xs-collapse">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small mb-1">共有URL</label>
+          <input type="url" class="form-control form-control-sm" id="xs-url"
+                 value="{{ cycle.xserver_url or '' }}"
+                 placeholder="https://drive.rmc-itabashi.jp/index.php/s/XXXXXXXX">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold small mb-1">パスワード</label>
+          <input type="password" class="form-control form-control-sm" id="xs-pw">
+        </div>
+        <div class="col-md-3">
+          <button class="btn btn-primary w-100" onclick="fetchFromXServer()">
+            <i class="bi bi-cloud-download me-1"></i>取得して一覧に追加
+          </button>
+        </div>
+      </div>
+      <div id="xs-status" class="mt-2" style="display:none;"></div>
+    </div>
+  </div>
 </div>
-{% else %}
+
+{% if not articles %}
+<div class="alert alert-warning" id="no-articles-msg">
+  <i class="bi bi-folder-x me-2"></i>
+  ローカルに原稿ファイルが見つかりません。上の「XServerから読み込む」か、
+  <a href="/cycle/{{ cycle.id }}#tab-articles">原稿管理タブ</a>でフォルダを設定してください。
+</div>
+{% endif %}
+
+{% if articles or True %}
 
 <div class="row g-3">
 
@@ -78,7 +115,7 @@
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h6 class="mb-0 fw-bold"><i class="bi bi-list-ul me-2"></i>記事一覧（ドラッグで並び替え）</h6>
-        <span class="badge bg-secondary">{{ articles | length }}件</span>
+        <span class="badge bg-secondary" id="article-count">{{ articles | length }}件</span>
       </div>
       <div class="card-body p-2">
         <div id="article-list">
@@ -150,7 +187,6 @@
   </div>
 
 </div><!-- /row -->
-{% endif %}
 {% endblock %}
 
 
@@ -226,6 +262,7 @@
 
 <script>
 let _newsletterText = '';
+let _xsHost = '', _xsToken = '', _xsPw = '';
 
 // ── ドラッグ＆ドロップ初期化 ──
 const listEl = document.getElementById('article-list');
@@ -243,6 +280,118 @@ if (listEl) {
     const item = e.target.closest('.article-item');
     item.classList.toggle('excluded', !e.target.checked);
   });
+}
+
+// ── XServer から取得 ────────────────────────────────────────────────────────
+async function fetchFromXServer() {
+  const url      = document.getElementById('xs-url').value.trim();
+  const pw       = document.getElementById('xs-pw').value;
+  const statusEl = document.getElementById('xs-status');
+  if (!url) { alert('URLを入力してください'); return; }
+
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>XServerに接続中...';
+
+  // URLをサーバーに保存（次回自動入力用）
+  fetch('/api/cycle/{{ cycle.id }}/xserver-save-url', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ url }),
+  });
+
+  // ファイル一覧取得
+  let listData;
+  try {
+    const res = await fetch('/api/cycle/{{ cycle.id }}/xserver-list', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ url, password: pw }),
+    });
+    listData = await res.json();
+  } catch (e) {
+    statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">通信エラー: ${e}</div>`;
+    return;
+  }
+
+  if (listData.error) {
+    statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>${listData.error}</div>`;
+    return;
+  }
+
+  const files = listData.files;
+  if (files.length === 0) {
+    statusEl.innerHTML = '<div class="alert alert-warning py-2 mb-0">原稿ファイル（.txt）が見つかりませんでした</div>';
+    return;
+  }
+
+  statusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${files.length}件のファイルを取得中...`;
+
+  // 各ファイルをダウンロードして一覧に追加
+  let added = 0, failed = 0;
+  for (const f of files) {
+    try {
+      const res = await fetch('/api/cycle/{{ cycle.id }}/xserver-fetch', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ host: listData.host, token: listData.token,
+                               password: pw, rel_path: f.rel_path }),
+      });
+      const d = await res.json();
+      if (d.error) { failed++; continue; }
+      addArticleItemToList(d.filename, d.dept, d.body, d.preview);
+      added++;
+    } catch (e) { failed++; }
+  }
+
+  updateArticleCount();
+  const noMsg = document.getElementById('no-articles-msg');
+  if (noMsg && added > 0) noMsg.style.display = 'none';
+
+  statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0">
+    <i class="bi bi-check-circle me-1"></i>
+    <strong>${added}件</strong>の原稿を読み込みました${failed ? ' （' + failed + '件エラー）' : ''}
+  </div>`;
+}
+
+function addArticleItemToList(filename, dept, body, preview) {
+  if (document.querySelector('[data-id="' + filename + '"]')) return;  // 重複スキップ
+
+  const div = document.createElement('div');
+  div.className   = 'article-item';
+  div.dataset.id   = filename;
+  div.dataset.dept = dept || filename;
+  div.dataset.body = body;
+
+  const prev = (preview || body.substring(0, 80)).replace(/\n/g, ' ');
+  const bodyH = body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  div.innerHTML = `
+    <div class="d-flex align-items-start gap-2">
+      <div class="drag-handle" title="ドラッグで並び替え"><i class="bi bi-grip-vertical"></i></div>
+      <div class="flex-grow-1 min-w-0">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="fw-semibold small">${dept || filename}
+            <span class="badge bg-info text-dark ms-1" style="font-size:10px;">XServer</span>
+          </span>
+          <div class="form-check mb-0">
+            <input class="form-check-input include-check" type="checkbox" checked>
+          </div>
+        </div>
+        <div class="text-muted small text-truncate mt-1" style="font-size:11px;">${prev}…</div>
+      </div>
+    </div>
+    <details class="mt-1">
+      <summary class="text-muted" style="font-size:11px;cursor:pointer;">本文を確認する</summary>
+      <pre class="article-preview-text mt-1">${bodyH}</pre>
+    </details>`;
+
+  div.querySelector('.include-check').addEventListener('change', e => {
+    div.classList.toggle('excluded', !e.target.checked);
+  });
+  document.getElementById('article-list').appendChild(div);
+}
+
+function updateArticleCount() {
+  const n = document.querySelectorAll('#article-list .article-item').length;
+  const b = document.getElementById('article-count');
+  if (b) b.textContent = n + '件';
 }
 
 // ── 組版実行 ──

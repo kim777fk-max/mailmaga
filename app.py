@@ -85,15 +85,16 @@ DEPARTMENTS = [
 SPECIAL_DEPTS = {'はじめに', '会長挨拶'}
 
 STEPS = [
-    {'key': 'schedule_mail',     'label': 'スケジュール案内',  'icon': '①', 'date_key': 'schedule_mail',     'has_email': True},
-    {'key': 'request_mail',      'label': '原稿依頼',          'icon': '②', 'date_key': 'request_mail',      'has_email': True},
-    {'key': 'submissions',       'label': '原稿収集',          'icon': '③', 'date_key': 'deadline',           'has_email': False},
-    {'key': 'deadline_reminder', 'label': 'リマインド',        'icon': '④', 'date_key': 'deadline_reminder',  'has_email': True},
-    {'key': 'deadline',          'label': '締切',              'icon': '⑤', 'date_key': 'deadline',           'has_email': True},
-    {'key': 'content_check',     'label': '内容チェック',      'icon': '⑥', 'date_key': 'review_request',     'has_email': False},
-    {'key': 'format_transfer',   'label': 'フォーマット転記',  'icon': '⑦', 'date_key': 'test_distribution',  'has_email': False},
-    {'key': 'final_check',       'label': '最終チェック',      'icon': '⑧', 'date_key': 'test_deadline',      'has_email': False},
-    {'key': 'publish',           'label': '配信',              'icon': '⑨', 'date_key': 'publish',            'has_email': False},
+    {'key': 'schedule_mail',     'label': 'スケジュール案内',      'icon': '①', 'date_key': 'schedule_mail',     'has_email': True},
+    {'key': 'request_mail',      'label': '原稿依頼',              'icon': '②', 'date_key': 'request_mail',      'has_email': True},
+    {'key': 'login_notify',      'label': 'ログインパスワード送付', 'icon': '③', 'date_key': 'request_mail',      'has_email': True},
+    {'key': 'submissions',       'label': '原稿収集',              'icon': '④', 'date_key': 'deadline',           'has_email': False},
+    {'key': 'deadline_reminder', 'label': 'リマインド',            'icon': '⑤', 'date_key': 'deadline_reminder',  'has_email': True},
+    {'key': 'deadline',          'label': '締切',                  'icon': '⑥', 'date_key': 'deadline',           'has_email': True},
+    {'key': 'content_check',     'label': '内容チェック',          'icon': '⑦', 'date_key': 'review_request',     'has_email': False},
+    {'key': 'format_transfer',   'label': 'フォーマット転記',      'icon': '⑧', 'date_key': 'test_distribution',  'has_email': False},
+    {'key': 'final_check',       'label': '最終チェック',          'icon': '⑨', 'date_key': 'test_deadline',      'has_email': False},
+    {'key': 'publish',           'label': '配信',                  'icon': '⑩', 'date_key': 'publish',            'has_email': False},
 ]
 
 
@@ -319,6 +320,27 @@ def get_default_templates():
                 '{publish}　メルマガ発行\n\n'
                 '※サーバ内に、掲載内容と前回配信のメルマガも保存しております。必要に応じてご参照ください。\n\n'
                 '以上、よろしくお願いいたします。'
+            ),
+        },
+        'login_notify': {
+            'label':   'ログインパスワード送付（閲覧用）',
+            'to':      '板診会広報部メンバー',
+            'cc':      '',
+            'subject': '【広報部】メルマガ管理ツール ログイン情報のご案内',
+            'body': (
+                '広報部の皆さま\n\n'
+                'お世話になっております。\n'
+                '広報部 {sender_name}です。\n\n'
+                'メルマガ管理ツールのログイン情報をお送りします。\n\n'
+                '【アクセスURL】\n'
+                'https://（Render.comのURL）\n\n'
+                '【パスワード】\n'
+                '（閲覧パスワードをここに記載）\n\n'
+                '※このパスワードで閲覧（読み取り専用）ログインができます。\n'
+                '※編集・操作は管理者のみ行えます。\n\n'
+                '現在の進捗状況や原稿の提出状況などをご確認いただけます。\n'
+                'ご不明な点は {sender_name}（{sender_email}）までご連絡ください。\n\n'
+                'よろしくお願いいたします。'
             ),
         },
         'deadline_reminder': {

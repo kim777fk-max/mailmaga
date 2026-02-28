@@ -5,6 +5,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>メルマガ原稿フォーム</title>
   <style>
+    /* ===== パスワードゲート ===== */
+    #pw-gate {
+      position: fixed; inset: 0;
+      background: #f0ebf8;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+    }
+    #pw-gate.hidden { display: none; }
+    .pw-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(103,58,183,.18);
+      padding: 40px 36px;
+      width: 100%; max-width: 380px;
+      border-top: 8px solid #673ab7;
+      text-align: center;
+    }
+    .pw-card h2 {
+      font-size: 20px; color: #333; margin-bottom: 6px;
+    }
+    .pw-card p {
+      color: #888; font-size: 13px; margin-bottom: 28px;
+    }
+    #pw-input {
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 16px;
+      text-align: center;
+      letter-spacing: 3px;
+      outline: none;
+      transition: border-color .2s;
+      margin-bottom: 12px;
+    }
+    #pw-input:focus { border-color: #673ab7; }
+    #pw-btn {
+      width: 100%;
+      background: #673ab7; color: #fff;
+      border: none; border-radius: 6px;
+      padding: 12px;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    #pw-btn:hover { background: #512da8; }
+    #pw-error {
+      color: #d32f2f; font-size: 13px;
+      margin-top: 10px; display: none;
+    }
     :root {
       --purple:       #673ab7;
       --purple-dark:  #512da8;
@@ -298,6 +348,20 @@
   </style>
 </head>
 <body>
+
+<!-- ===== パスワードゲート ===== -->
+<div id="pw-gate">
+  <div class="pw-card">
+    <h2>🔒 メルマガ原稿フォーム</h2>
+    <p>板診会 広報部よりご案内したパスワードを入力してください</p>
+    <input type="password" id="pw-input" placeholder="パスワード"
+           autocomplete="current-password"
+           onkeydown="if(event.key==='Enter') checkPw()">
+    <button id="pw-btn" onclick="checkPw()">入力</button>
+    <div id="pw-error">⚠️ パスワードが正しくありません</div>
+  </div>
+</div>
+
 <div class="wrap">
 
   <!-- ヘッダー -->
@@ -412,6 +476,46 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
+
+/* ===== パスワード認証 =====
+   パスワードをSHA-256でハッシュして比較する。
+   セッション中は再入力不要（sessionStorage利用）。
+   パスワードを変更するには PW_HASH を書き換える。
+   ハッシュ値の生成: python3 -c "import hashlib; print(hashlib.sha256('新パスワード'.encode()).hexdigest())"
+================================================ */
+const PW_HASH = '53b04b5b2b9ac05d9a7a49c9062a6b26ff4924b05b8178f412d2a94402bc958e'; // itashin2026
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function checkPw() {
+  const val = document.getElementById('pw-input').value;
+  const h   = await sha256(val);
+  if (h === PW_HASH) {
+    sessionStorage.setItem('melmaga_auth', PW_HASH);
+    document.getElementById('pw-gate').classList.add('hidden');
+    document.getElementById('pw-error').style.display = 'none';
+  } else {
+    document.getElementById('pw-error').style.display = 'block';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+  }
+}
+
+// ページ読み込み時: 認証済みならゲートを非表示
+(async () => {
+  if (sessionStorage.getItem('melmaga_auth') === PW_HASH) {
+    document.getElementById('pw-gate').classList.add('hidden');
+  } else {
+    // ゲートが表示されるまで本文を隠す（ちらつき防止）
+    document.documentElement.style.overflow = 'hidden';
+    window.addEventListener('DOMContentLoaded', () => {
+      document.documentElement.style.overflow = '';
+    });
+  }
+})();
 
 /* ===== 改行保護マーカー（ZWS） =====
    ゼロ幅スペース（U+200B）を不可視の「意図的改行マーカー」として使う。

@@ -106,10 +106,12 @@ STEPS = [
 #
 # いずれも未設定（ローカル開発）の場合は認証をスキップし、管理者として扱う。
 
-_ADMIN_PASSWORD = (os.environ.get('ADMIN_PASSWORD')
-                   or os.environ.get('APP_PASSWORD', ''))
-_USER_PASSWORD  = os.environ.get('USER_PASSWORD', '')
-_AUTH_ENABLED   = bool(_ADMIN_PASSWORD)
+_ADMIN_PASSWORD  = (os.environ.get('ADMIN_PASSWORD')
+                    or os.environ.get('APP_PASSWORD', ''))
+_USER_PASSWORD   = os.environ.get('USER_PASSWORD', '')
+_AUTH_ENABLED    = bool(_ADMIN_PASSWORD)
+# ACCESS_KEY が設定されている場合、/enter?key=xxx を経由しないとログイン画面すら表示しない
+_ACCESS_KEY      = os.environ.get('ACCESS_KEY', '')
 
 from flask import session as flask_session
 from datetime import timedelta
@@ -142,10 +144,23 @@ def admin_required(f):
 
 @app.before_request
 def check_login():
-    """認証が有効な場合、ログイン済みかチェックする。"""
+    """
+    1. ACCESS_KEY が設定されている場合、入口クッキーがなければ 404 を返す。
+    2. 認証が有効な場合、ログイン済みかチェックする。
+    """
+    # ── 入口チェック ──
+    if _ACCESS_KEY:
+        if request.endpoint in ('entry', 'static'):
+            return
+        if not flask_session.get('entry_ok'):
+            # ログインページ自体も隠す
+            from flask import abort
+            abort(404)
+
+    # ── ログインチェック ──
     if not _AUTH_ENABLED:
         return
-    if request.endpoint in ('login', 'logout', 'static'):
+    if request.endpoint in ('login', 'logout', 'static', 'entry'):
         return
     if not flask_session.get('role'):
         return redirect(url_for('login', next=request.path))
@@ -155,6 +170,24 @@ def check_login():
 def inject_role():
     """全テンプレートで is_admin / current_role を使えるようにする。"""
     return {'is_admin': is_admin(), 'current_role': current_role()}
+
+
+@app.route('/enter')
+def entry():
+    """
+    入口URL: /enter?key=ACCESS_KEY
+    正しいキーが渡されればクッキーを発行してログイン画面へ。
+    ACCESS_KEY 未設定の場合はこのルート自体を無効化。
+    """
+    if not _ACCESS_KEY:
+        return redirect(url_for('login'))
+    key = request.args.get('key', '')
+    if key == _ACCESS_KEY:
+        flask_session.permanent = True
+        flask_session['entry_ok'] = True
+        return redirect(url_for('login'))
+    from flask import abort
+    abort(404)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -180,7 +213,14 @@ def login():
 @app.route('/logout')
 def logout():
     flask_session.clear()
+    if _ACCESS_KEY:
+        from flask import abort
+        abort(404)   # ログアウト後は404（入口URLから入り直す）
     return redirect(url_for('login'))
+
+@app.route('/robots.txt')
+def robots():
+    return app.send_static_file('robots.txt')
 
 
 # ─── Data helpers ────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
-import json, os, re, urllib.parse
+import json, os, re, urllib.parse, base64
 from datetime import datetime, date
 import calendar
 
@@ -11,7 +11,7 @@ except ImportError:
     _REQUESTS_OK = False
 
 app = Flask(__name__)
-app.secret_key = 'melmaga-kanri-itashin-2026'
+app.secret_key = os.environ.get('SECRET_KEY', 'melmaga-kanri-itashin-2026')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
@@ -20,6 +20,48 @@ os.makedirs(DATA_DIR, exist_ok=True)
 CYCLES_FILE    = os.path.join(DATA_DIR, 'cycles.json')
 CONFIG_FILE    = os.path.join(DATA_DIR, 'config.json')
 TEMPLATES_FILE = os.path.join(DATA_DIR, 'email_templates.json')
+
+# ─── GitHub API によるデータ永続化（Render.com 等クラウド環境用） ──────────────
+# ローカル開発時は GITHUB_TOKEN が未設定のため、通常のファイル I/O のみ使用する。
+_GH_TOKEN  = os.environ.get('GITHUB_TOKEN', '')
+_GH_REPO   = os.environ.get('GITHUB_REPO', 'kim777fk-max/mailmaga')
+_GH_BRANCH = os.environ.get('GITHUB_DATA_BRANCH', 'main')
+_GH_PREFIX = 'data'          # リポジトリ内のデータフォルダ
+_USE_GITHUB = bool(_GH_TOKEN and os.environ.get('RENDER'))  # Render.com 上のみ有効
+
+def _gh_headers():
+    return {'Authorization': f'token {_GH_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json'}
+
+def _gh_read(filename):
+    """GitHub から JSON ファイルを読み込む。(data, sha) を返す。"""
+    url = f'https://api.github.com/repos/{_GH_REPO}/contents/{_GH_PREFIX}/{filename}'
+    try:
+        r = requests.get(url, headers=_gh_headers(),
+                         params={'ref': _GH_BRANCH}, timeout=10)
+        if r.status_code == 200:
+            body = r.json()
+            content = base64.b64decode(body['content']).decode('utf-8')
+            return json.loads(content), body['sha']
+    except Exception:
+        pass
+    return None, None
+
+def _gh_write(filename, data, sha=None):
+    """GitHub に JSON ファイルを書き込む（自動 commit）。"""
+    url = f'https://api.github.com/repos/{_GH_REPO}/contents/{_GH_PREFIX}/{filename}'
+    content = base64.b64encode(
+        json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8')
+    ).decode('utf-8')
+    body = {'message': f'data: update {filename}',
+            'content': content,
+            'branch':  _GH_BRANCH}
+    if sha:
+        body['sha'] = sha
+    try:
+        requests.put(url, headers=_gh_headers(), json=body, timeout=10)
+    except Exception:
+        pass
 
 DEPARTMENTS = [
     'はじめに',
@@ -58,14 +100,38 @@ STEPS = [
 # ─── Data helpers ────────────────────────────────────────────────────────────
 
 def load_json(filepath, default):
+    """
+    ローカルファイルから JSON を読み込む。
+    クラウド環境（RENDER=true）かつローカルファイルがなければ GitHub から復元する。
+    """
     if os.path.exists(filepath):
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
+
+    if _USE_GITHUB:
+        filename = os.path.basename(filepath)
+        data, _ = _gh_read(filename)
+        if data is not None:
+            # ローカルにキャッシュして次回以降のAPIコールを省く
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return data
+
     return default() if callable(default) else default
 
 def save_json(filepath, data):
+    """
+    ローカルに保存し、クラウド環境では GitHub にも同期する。
+    """
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+    if _USE_GITHUB:
+        filename = os.path.basename(filepath)
+        _, sha = _gh_read(filename)   # 既存ファイルの SHA を取得（更新に必要）
+        _gh_write(filename, data, sha)
 
 def load_cycles():   return load_json(CYCLES_FILE, [])
 def save_cycles(c):  save_json(CYCLES_FILE, c)

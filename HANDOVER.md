@@ -281,5 +281,35 @@ Schedule Trigger（偶数月25日）
 |---|---|
 | 問い合わせメール | mmp@rmc-itabashi.jp |
 | GitHubリポジトリ | https://github.com/kim777fk-max/mailmaga |
+| **原稿フォーム（公開URL）** | **https://kim777fk-max.github.io/mailmaga/form/melmaga.html** |
 | ローカルパス | `/Users/administrator/Desktop/DEV/melmaga-kanri/` |
 | 原稿提出サーバー | https://drive.rmc-itabashi.jp/index.php/s/5rX5tfHQep43eZr |
+
+## 12. 原稿フォームのホスティングについて
+
+### 公開URL
+```
+https://kim777fk-max.github.io/mailmaga/form/melmaga.html
+```
+
+GitHub Pages（無料）で公開しています。コードを `git push` すると自動で反映されます（数分かかる場合あり）。
+
+### なぜXServer（Nextcloud）ではダメか
+
+XServer/Nextcloudでは以下の理由でJavaScriptが正しく動作しません：
+
+- Nextcloudはファイルを独自のビューアで表示する
+- セキュリティポリシー（CSP）でインラインスクリプトをブロックする
+- HTMLファイルをWebページとして「実行」するのではなく「プレビュー」する
+
+→ **原稿フォームは必ずGitHub Pages URLで案内すること**
+
+### GitHub Pages 更新方法
+```bash
+cd /Users/administrator/Desktop/DEV/melmaga-kanri
+# melmaga.html を編集後
+git add form/melmaga.html
+git commit -m "フォーム更新"
+git push
+# 数分後に https://kim777fk-max.github.io/mailmaga/form/melmaga.html に反映
+```

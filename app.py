@@ -97,6 +97,45 @@ STEPS = [
 ]
 
 
+# ─── シンプルパスワード認証 ────────────────────────────────────────────────────
+# 環境変数 APP_PASSWORD が設定されている場合のみ認証を有効にする。
+# ローカル開発時は未設定のままにしておけばスキップされる。
+_APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
+
+from flask import session as flask_session
+from datetime import timedelta
+
+app.permanent_session_lifetime = timedelta(hours=12)
+
+@app.before_request
+def check_login():
+    """パスワード未設定（ローカル）はスルー。設定済みなら /login 以外は認証必須。"""
+    if not _APP_PASSWORD:
+        return
+    if request.endpoint in ('login', 'logout', 'static'):
+        return
+    if not flask_session.get('logged_in'):
+        return redirect(url_for('login', next=request.path))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if not _APP_PASSWORD:
+        return redirect(url_for('dashboard'))
+    error = None
+    if request.method == 'POST':
+        if request.form.get('password') == _APP_PASSWORD:
+            flask_session.permanent = True
+            flask_session['logged_in'] = True
+            return redirect(request.args.get('next') or url_for('dashboard'))
+        error = 'パスワードが違います'
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    flask_session.clear()
+    return redirect(url_for('login'))
+
+
 # ─── Data helpers ────────────────────────────────────────────────────────────
 
 def load_json(filepath, default):
